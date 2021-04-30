@@ -91,25 +91,28 @@ class Base:
     def _handle_events(self):
         keep_going = True
         out_data = b''
-        for event in self.ws.events():
-            if isinstance(event, Request):
-                out_data += self.ws.send(AcceptConnection())
-            elif isinstance(event, CloseConnection):
-                if self.is_server:
+        try:
+            for event in self.ws.events():
+                if isinstance(event, Request):
+                    out_data += self.ws.send(AcceptConnection())
+                elif isinstance(event, CloseConnection):
+                    if self.is_server:
+                        out_data += self.ws.send(event.response())
+                    self.event.set()
+                    keep_going = False
+                elif isinstance(event, Ping):
                     out_data += self.ws.send(event.response())
-                self.event.set()
-                keep_going = False
-            elif isinstance(event, Ping):
-                out_data += self.ws.send(event.response())
-            elif isinstance(event, TextMessage):
-                self.input_buffer.append(event.data)
-                self.event.set()
-            elif isinstance(event, BytesMessage):
-                self.input_buffer.append(event.data)
-                self.event.set()
-        if out_data:
-            self.sock.send(out_data)
-        return keep_going
+                elif isinstance(event, TextMessage):
+                    self.input_buffer.append(event.data)
+                    self.event.set()
+                elif isinstance(event, BytesMessage):
+                    self.input_buffer.append(event.data)
+                    self.event.set()
+            if out_data:
+                self.sock.send(out_data)
+            return keep_going
+        except:
+            return False
 
 
 class Server(Base):

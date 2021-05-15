@@ -3,7 +3,7 @@ import ssl
 import threading
 from urllib.parse import urlsplit
 
-from wsproto import ConnectionType, WSConnection, ConnectionState
+from wsproto import ConnectionType, WSConnection
 from wsproto.events import (
     AcceptConnection,
     RejectConnection,
@@ -124,17 +124,19 @@ class Server(Base):
         self.environ = environ
         if 'werkzeug.socket' in environ:
             # extract socket from Werkzeug's WSGI environment
-            socket = environ.get('werkzeug.socket')
+            sock = environ.get('werkzeug.socket')
         elif 'gunicorn.socket' in environ:
             # extract socket from Gunicorn WSGI environment
-            socket = environ.get('gunicorn.socket')
+            sock = environ.get('gunicorn.socket')
         elif 'eventlet.input' in environ:
             # extract socket from Eventlet's WSGI environment
-            socket = environ.get('eventlet.input').get_socket()
+            sock = environ.get('eventlet.input').get_socket()
         elif environ.get('SERVER_SOFTWARE', '').startswith('gevent'):
             # extract socket from Gevent's WSGI environment
-            socket = environ['wsgi.input'].raw._sock
-        super().__init__(socket, connection_type=ConnectionType.SERVER,
+            sock = environ['wsgi.input'].raw._sock
+        else:
+            raise RuntimeError('Cannot obtain socket from WSGI environment.')
+        super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
                          thread_class=thread_class, event_class=event_class)
 

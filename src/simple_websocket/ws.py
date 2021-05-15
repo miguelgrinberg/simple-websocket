@@ -3,7 +3,7 @@ import ssl
 import threading
 from urllib.parse import urlsplit
 
-from wsproto import ConnectionType, WSConnection
+from wsproto import ConnectionType, WSConnection, ConnectionState
 from wsproto.events import (
     AcceptConnection,
     RejectConnection,
@@ -15,6 +15,7 @@ from wsproto.events import (
     BytesMessage,
 )
 from wsproto.frame_protocol import CloseReason
+from wsproto.utilities import LocalProtocolError
 
 
 class ConnectionError(RuntimeError):
@@ -92,21 +93,26 @@ class Base:
         keep_going = True
         out_data = b''
         for event in self.ws.events():
-            if isinstance(event, Request):
-                out_data += self.ws.send(AcceptConnection())
-            elif isinstance(event, CloseConnection):
-                if self.is_server:
+            try:
+                if isinstance(event, Request):
+                    out_data += self.ws.send(AcceptConnection())
+                elif isinstance(event, CloseConnection):
+                    if self.is_server:
+                        out_data += self.ws.send(event.response())
+                    self.event.set()
+                    keep_going = False
+                elif isinstance(event, Ping):
                     out_data += self.ws.send(event.response())
+                elif isinstance(event, TextMessage):
+                    self.input_buffer.append(event.data)
+                    self.event.set()
+                elif isinstance(event, BytesMessage):
+                    self.input_buffer.append(event.data)
+                    self.event.set()
+            except LocalProtocolError:
+                out_data = b''
                 self.event.set()
                 keep_going = False
-            elif isinstance(event, Ping):
-                out_data += self.ws.send(event.response())
-            elif isinstance(event, TextMessage):
-                self.input_buffer.append(event.data)
-                self.event.set()
-            elif isinstance(event, BytesMessage):
-                self.input_buffer.append(event.data)
-                self.event.set()
         if out_data:
             self.sock.send(out_data)
         return keep_going

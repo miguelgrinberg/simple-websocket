@@ -19,12 +19,14 @@ from wsproto.utilities import LocalProtocolError
 
 
 class ConnectionError(RuntimeError):
+    """Connection error exception class."""
     def __init__(self, status_code):
         self.status_code = status_code
         super().__init__(f'Connection error {status_code}')
 
 
 class ConnectionClosed(RuntimeError):
+    """Connection closed exception class."""
     pass
 
 
@@ -47,10 +49,16 @@ class Base:
         self.event.clear()
 
     def handshake(self):
-        """To be implemented by subclasses."""
+        # to be implemented by subclasses
         pass
 
     def send(self, data):
+        """Send data over the WebSocket connection.
+
+        :param data: The data to send. If ``data`` is of type ``bytes``, then
+                     a binary message is sent. Else, the message is sent in
+                     text format.
+        """
         if not self.connected:
             raise ConnectionClosed()
         if isinstance(data, bytes):
@@ -60,6 +68,15 @@ class Base:
         self.sock.send(out_data)
 
     def receive(self, timeout=None):
+        """Receive data over the WebSocket connection.
+
+        :param timeout: Amount of time to wait for the data, in seconds. Set
+                        to ``None`` (the default) to wait undefinitely. Set
+                        to 0 to read without blocking.
+
+        The data received is returned, as ``bytes`` or ``str``, depending on
+        the type of the incoming message.
+        """
         while self.connected and not self.input_buffer:
             if not self.event.wait(timeout=timeout):
                 return None
@@ -69,6 +86,13 @@ class Base:
         return self.input_buffer.pop(0)
 
     def close(self, reason=None, message=None):
+        """Close the WebSocket connection.
+
+        :param reason: A numeric status code indicating the reason of the
+                       closure, as defined by the WebSocket specifiation. The
+                       default is 1000 (normal closure).
+        :param message: A text message to be sent to the other side.
+        """
         out_data = self.ws.send(CloseConnection(
             reason or CloseReason.NORMAL_CLOSURE, message))
         try:
@@ -119,6 +143,25 @@ class Base:
 
 
 class Server(Base):
+    """This class implements a WebSocket server.
+
+    :param environ: A WSGI ``environ`` dictionary with the request details.
+                    Among other things, this class expects to find the
+                    low-level network socket for the connection somewhere in
+                    this dictionary. Since the WSGI specification does not
+                    cover where or how to store this socket, each web server
+                    does this in its own different way. Werkzeug, Gunicorn,
+                    Eventlet and Gevent are the only web servers that are
+                    currently supported.
+    :param receive_bytes: The size of the receive buffer, in bytes. The
+                          default is 4096.
+    :param thread_class: The ``Thread`` class to use when creating background
+                         threads. The default is the ``threading.Thread``
+                         class from the Python standard library.
+    :param event_class: The ``Event`` class to use when creating event
+                        objects. The default is the `threading.Event`` class
+                        from the Python standard library.
+    """
     def __init__(self, environ, receive_bytes=4096,
                  thread_class=threading.Thread, event_class=threading.Event):
         self.environ = environ
@@ -151,6 +194,21 @@ class Server(Base):
 
 
 class Client(Base):
+    """This class implements a WebSocket client.
+
+    :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
+                accepted.
+    :param receive_bytes: The size of the receive buffer, in bytes. The
+                          default is 4096.
+    :param thread_class: The ``Thread`` class to use when creating background
+                         threads. The default is the ``threading.Thread``
+                         class from the Python standard library.
+    :param event_class: The ``Event`` class to use when creating event
+                        objects. The default is the `threading.Event`` class
+                        from the Python standard library.
+    :param ssl_context: An ``SSLContext`` instance, if a default SSL context
+                        isn't sufficient.
+    """
     def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
                  event_class=threading.Event, ssl_context=None):
         parsed_url = urlsplit(url)

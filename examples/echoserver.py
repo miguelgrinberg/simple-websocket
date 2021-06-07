@@ -1,11 +1,3 @@
-#import eventlet
-#eventlet.monkey_patch()
-#from eventlet import wsgi
-
-#from gevent import monkey
-#monkey.patch_all()
-#from gevent.pywsgi import WSGIServer
-
 from flask import Flask, render_template, request
 import simple_websocket
 app = Flask(__name__)
@@ -22,5 +14,6 @@ def echo():
         pass
     return ''
 
-#wsgi.server(eventlet.listen(('', 5000)), app)
-#WSGIServer(('127.0.0.1', 5000), app).serve_forever()
+
+if __name__ == '__main__':
+    app.run()

@@ -48,7 +48,7 @@ class Base:
         self.event.wait()
         self.event.clear()
 
-    def handshake(self):
+    def handshake(self):  # pragma: no cover
         # to be implemented by subclasses
         pass
 
@@ -171,10 +171,11 @@ class Server(Base):
         elif 'gunicorn.socket' in environ:
             # extract socket from Gunicorn WSGI environment
             sock = environ.get('gunicorn.socket')
-        elif 'eventlet.input' in environ:
+        elif 'eventlet.input' in environ:  # pragma: no cover
             # extract socket from Eventlet's WSGI environment
             sock = environ.get('eventlet.input').get_socket()
-        elif environ.get('SERVER_SOFTWARE', '').startswith('gevent'):
+        elif environ.get('SERVER_SOFTWARE', '').startswith(
+                'gevent'):  # pragma: no cover
             # extract socket from Gevent's WSGI environment
             sock = environ['wsgi.input'].raw._sock
         else:

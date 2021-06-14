@@ -43,7 +43,6 @@ class Base:
         self.ws = WSConnection(connection_type)
         self.handshake()
 
-        self.connected = self._handle_events()
         if self.connected:
             self.thread = thread_class(target=self._thread)
             self.thread.start()
@@ -135,7 +134,7 @@ class Base:
                     self.input_buffer.append(event.data)
                     self.event.set()
                 else:  # pragma: no cover
-                    raise ValueError('Invalid WebSocket event')
+                    pass
             except LocalProtocolError:  # pragma: no cover
                 out_data = b''
                 self.event.set()
@@ -195,6 +194,7 @@ class Server(Base):
                 in_data += f'{header}: {value}\r\n'.encode()
         in_data += b'\r\n'
         self.ws.receive_data(in_data)
+        self.connected = self._handle_events()
 
 
 class Client(Base):
@@ -245,6 +245,7 @@ class Client(Base):
                 break
             elif isinstance(event, RejectConnection):
                 raise ConnectionError(event.status_code)
+        self.connected = True
 
     def close(self, reason=None, message=None):
         super().close(reason=reason, message=message)

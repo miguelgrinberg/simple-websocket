@@ -92,9 +92,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             [BytesMessage(b'hello')],
         ])
         server.connected = True
-        server.event.set()
         assert server.receive() == 'hello'
-        server.event.set()
         assert server.receive() == b'hello'
         assert server.receive(timeout=0) is None
 

@@ -43,10 +43,10 @@ class Base:
         self.ws = WSConnection(connection_type)
         self.handshake()
 
-        self.thread = thread_class(target=self._thread)
-        self.thread.start()
-        self.event.wait()
-        self.event.clear()
+        self.connected = self._handle_events()
+        if self.connected:
+            self.thread = thread_class(target=self._thread)
+            self.thread.start()
 
     def handshake(self):  # pragma: no cover
         # to be implemented by subclasses
@@ -81,7 +81,7 @@ class Base:
             if not self.event.wait(timeout=timeout):
                 return None
             self.event.clear()
-        if not self.connected:
+        if not self.connected:  # pragma: no cover
             raise ConnectionClosed()
         return self.input_buffer.pop(0)
 
@@ -93,20 +93,21 @@ class Base:
                        default is 1000 (normal closure).
         :param message: A text message to be sent to the other side.
         """
+        if not self.connected:
+            raise ConnectionClosed()
         out_data = self.ws.send(CloseConnection(
             reason or CloseReason.NORMAL_CLOSURE, message))
         try:
             self.sock.send(out_data)
-        except BrokenPipeError:
+        except BrokenPipeError:  # pragma: no cover
             pass
+        self.connected = False
 
     def _thread(self):
-        self.connected = self._handle_events()
-        self.event.set()
         while self.connected:
             try:
                 in_data = self.sock.recv(self.receive_bytes)
-            except (OSError, ConnectionResetError):
+            except (OSError, ConnectionResetError):  # pragma: no cover
                 self.connected = False
                 self.event.set()
                 break
@@ -133,7 +134,9 @@ class Base:
                 elif isinstance(event, BytesMessage):
                     self.input_buffer.append(event.data)
                     self.event.set()
-            except LocalProtocolError:
+                else:  # pragma: no cover
+                    raise ValueError('Invalid WebSocket event')
+            except LocalProtocolError:  # pragma: no cover
                 out_data = b''
                 self.event.set()
                 keep_going = False

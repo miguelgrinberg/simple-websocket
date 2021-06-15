@@ -1,16 +1,18 @@
+import time
 import unittest
 from unittest import mock
 import pytest  # noqa: F401
 
 from wsproto.events import AcceptConnection, CloseConnection, TextMessage, \
-    BytesMessage
+    BytesMessage, Ping
 import simple_websocket
 
 
 class SimpleWebSocketClientTestCase(unittest.TestCase):
     def get_client(self, mock_wsconn, url, events=[]):
-        mock_wsconn().events.side_effect = [[AcceptConnection()]] + events + \
-            [[CloseConnection(1000)]]
+        mock_wsconn().events.side_effect = \
+            [iter(ev) for ev in
+             [[AcceptConnection()]] + events + [[CloseConnection(1000)]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
         return simple_websocket.Client(url)
 
@@ -54,10 +56,20 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
             [TextMessage('hello')],
             [BytesMessage(b'hello')],
         ])
+        time.sleep(0.1)
         client.connected = True
         assert client.receive() == 'hello'
         assert client.receive() == b'hello'
         assert client.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.socket.socket')
+    @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_ping(self, mock_wsconn, mock_socket):
+        self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
+            [Ping(b'hello')],
+        ])
+        time.sleep(0.1)
+        mock_socket().send.assert_any_call(b"Pong(payload=b'hello')")
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')

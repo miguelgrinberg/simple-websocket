@@ -1,14 +1,18 @@
+import time
 import unittest
 from unittest import mock
 import pytest  # noqa: F401
 
-from wsproto.events import CloseConnection, TextMessage, BytesMessage
+from wsproto.events import Request, CloseConnection, TextMessage, \
+    BytesMessage, Ping
 import simple_websocket
 
 
 class SimpleWebSocketServerTestCase(unittest.TestCase):
     def get_server(self, mock_wsconn, environ, events=[]):
-        mock_wsconn().events.side_effect = events + [[CloseConnection(1000)]]
+        mock_wsconn().events.side_effect = \
+            [iter(ev) for ev in [[Request(host='example.com', target='/ws')]] +
+             events + [[CloseConnection(1000)]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
         environ.update({
             'HTTP_HOST': 'example.com',
@@ -29,14 +33,13 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         assert server.receive_bytes == 4096
         assert server.input_buffer == []
         assert server.event.__class__.__name__ == 'Event'
-        mock_wsconn().receive_data.assert_called_with(
+        mock_wsconn().receive_data.assert_any_call(
             b'GET / HTTP/1.1\r\n'
             b'Host: example.com\r\n'
             b'Connection: Upgrade\r\n'
             b'Upgrade: websocket\r\n'
             b'Sec-Websocket-Key: Iv8io/9s+lYFgZWcXczP8Q==\r\n'
             b'Sec-Websocket-Version: 13\r\n\r\n')
-        assert not server.connected
         assert server.is_server
 
     @mock.patch('simple_websocket.ws.WSConnection')
@@ -49,14 +52,13 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         assert server.receive_bytes == 4096
         assert server.input_buffer == []
         assert server.event.__class__.__name__ == 'Event'
-        mock_wsconn().receive_data.assert_called_with(
+        mock_wsconn().receive_data.assert_any_call(
             b'GET / HTTP/1.1\r\n'
             b'Host: example.com\r\n'
             b'Connection: Upgrade\r\n'
             b'Upgrade: websocket\r\n'
             b'Sec-Websocket-Key: Iv8io/9s+lYFgZWcXczP8Q==\r\n'
             b'Sec-Websocket-Version: 13\r\n\r\n')
-        assert not server.connected
         assert server.is_server
 
     def test_no_socket(self):
@@ -91,10 +93,22 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             [TextMessage('hello')],
             [BytesMessage(b'hello')],
         ])
+        time.sleep(0.1)
         server.connected = True
         assert server.receive() == 'hello'
         assert server.receive() == b'hello'
         assert server.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_ping(self, mock_wsconn):
+        mock_socket = mock.MagicMock()
+        self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, events=[
+            [Ping(b'hello')],
+        ])
+        time.sleep(0.1)
+        mock_socket.send.assert_any_call(b"Pong(payload=b'hello')")
 
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_close(self, mock_wsconn):

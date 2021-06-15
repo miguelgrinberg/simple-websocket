@@ -18,9 +18,9 @@ from wsproto.frame_protocol import CloseReason
 from wsproto.utilities import LocalProtocolError
 
 
-class ConnectionError(RuntimeError):
+class ConnectionError(RuntimeError):  # pragma: no cover
     """Connection error exception class."""
-    def __init__(self, status_code):
+    def __init__(self, status_code=None):
         self.status_code = status_code
         super().__init__(f'Connection error {status_code}')
 
@@ -43,9 +43,10 @@ class Base:
         self.ws = WSConnection(connection_type)
         self.handshake()
 
-        if self.connected:
-            self.thread = thread_class(target=self._thread)
-            self.thread.start()
+        if not self.connected:  # pragma: no cover
+            raise ConnectionError()
+        self.thread = thread_class(target=self._thread)
+        self.thread.start()
 
     def handshake(self):  # pragma: no cover
         # to be implemented by subclasses
@@ -240,11 +241,11 @@ class Client(Base):
 
         in_data = self.sock.recv(self.receive_bytes)
         self.ws.receive_data(in_data)
-        for event in self.ws.events():
-            if isinstance(event, AcceptConnection):
-                break
-            elif isinstance(event, RejectConnection):
-                raise ConnectionError(event.status_code)
+        event = next(self.ws.events())
+        if isinstance(event, RejectConnection):  # pragma: no cover
+            raise ConnectionError(event.status_code)
+        elif not isinstance(event, AcceptConnection):  # pragma: no cover
+            raise ConnectionError(400)
         self.connected = True
 
     def close(self, reason=None, message=None):

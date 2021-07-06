@@ -100,6 +100,23 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         assert server.receive(timeout=0) is None
 
     @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_split_messages(self, mock_wsconn):
+        mock_socket = mock.MagicMock()
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, events=[
+            [TextMessage('hel', message_finished=False)],
+            [TextMessage('lo')],
+            [BytesMessage(b'hel', message_finished=False)],
+            [BytesMessage(b'lo')],
+        ])
+        time.sleep(0.1)
+        server.connected = True
+        assert server.receive() == 'hello'
+        assert server.receive() == b'hello'
+        assert server.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn):
         mock_socket = mock.MagicMock()
         self.get_server(mock_wsconn, {

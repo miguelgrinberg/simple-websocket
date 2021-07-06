@@ -36,6 +36,7 @@ class Base:
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.input_buffer = []
+        self.incoming_message = None
         self.event = event_class()
         self.connected = False
         self.is_server = (connection_type == ConnectionType.SERVER)
@@ -128,11 +129,15 @@ class Base:
                     keep_going = False
                 elif isinstance(event, Ping):
                     out_data += self.ws.send(event.response())
-                elif isinstance(event, TextMessage):
-                    self.input_buffer.append(event.data)
-                    self.event.set()
-                elif isinstance(event, BytesMessage):
-                    self.input_buffer.append(event.data)
+                elif isinstance(event, (TextMessage, BytesMessage)):
+                    if self.incoming_message is None:
+                        self.incoming_message = event.data
+                    else:
+                        self.incoming_message += event.data
+                    if not event.message_finished:
+                        continue
+                    self.input_buffer.append(self.incoming_message)
+                    self.incoming_message = None
                     self.event.set()
                 else:  # pragma: no cover
                     pass

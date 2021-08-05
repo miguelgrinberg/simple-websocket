@@ -71,7 +71,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         })
-        server.connected = False
+        while server.connected:
+            time.sleep(0.01)
         with pytest.raises(simple_websocket.ConnectionClosed):
             server.send('hello')
         server.connected = True
@@ -93,7 +94,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             [TextMessage('hello')],
             [BytesMessage(b'hello')],
         ])
-        time.sleep(0.1)
+        while server.connected:
+            time.sleep(0.01)
         server.connected = True
         assert server.receive() == 'hello'
         assert server.receive() == b'hello'
@@ -110,7 +112,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             [BytesMessage(b'hel', message_finished=False)],
             [BytesMessage(b'lo')],
         ])
-        time.sleep(0.1)
+        while server.connected:
+            time.sleep(0.01)
         server.connected = True
         assert server.receive() == 'hello'
         assert server.receive() == b'hello'
@@ -119,12 +122,13 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn):
         mock_socket = mock.MagicMock()
-        self.get_server(mock_wsconn, {
+        server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         }, events=[
             [Ping(b'hello')],
         ])
-        time.sleep(0.1)
+        while server.connected:
+            time.sleep(0.01)
         mock_socket.send.assert_any_call(b"Pong(payload=b'hello')")
 
     @mock.patch('simple_websocket.ws.WSConnection')
@@ -133,7 +137,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         })
-        server.connected = False
+        while server.connected:
+            time.sleep(0.01)
         with pytest.raises(simple_websocket.ConnectionClosed):
             server.close()
         server.connected = True

@@ -36,7 +36,8 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_send(self, mock_wsconn, mock_socket):
         client = self.get_client(mock_wsconn, 'ws://example.com/ws')
-        client.connected = False
+        while client.connected:
+            time.sleep(0.01)
         with pytest.raises(simple_websocket.ConnectionClosed):
             client.send('hello')
         client.connected = True
@@ -56,7 +57,8 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
             [TextMessage('hello')],
             [BytesMessage(b'hello')],
         ])
-        time.sleep(0.1)
+        while client.connected:
+            time.sleep(0.01)
         client.connected = True
         assert client.receive() == 'hello'
         assert client.receive() == b'hello'
@@ -65,17 +67,19 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn, mock_socket):
-        self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
+        client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
             [Ping(b'hello')],
         ])
-        time.sleep(0.1)
+        while client.connected:
+            time.sleep(0.01)
         mock_socket().send.assert_any_call(b"Pong(payload=b'hello')")
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_close(self, mock_wsconn, mock_socket):
         client = self.get_client(mock_wsconn, 'ws://example.com/ws')
-        client.connected = False
+        while client.connected:
+            time.sleep(0.01)
         with pytest.raises(simple_websocket.ConnectionClosed):
             client.close()
         client.connected = True

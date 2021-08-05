@@ -173,6 +173,7 @@ class Server(Base):
     def __init__(self, environ, receive_bytes=4096,
                  thread_class=threading.Thread, event_class=threading.Event):
         self.environ = environ
+        sock = None
         if 'werkzeug.socket' in environ:
             # extract socket from Werkzeug's WSGI environment
             sock = environ.get('werkzeug.socket')
@@ -185,8 +186,12 @@ class Server(Base):
         elif environ.get('SERVER_SOFTWARE', '').startswith(
                 'gevent'):  # pragma: no cover
             # extract socket from Gevent's WSGI environment
-            sock = environ['wsgi.input'].raw._sock
-        else:
+            wsgi_input = environ['wsgi.input']
+            if not hasattr(wsgi_input, 'raw') and hasattr(wsgi_input, 'rfile'):
+                wsgi_input = wsgi_input.rfile
+            if hasattr(wsgi_input, 'raw'):
+                sock = wsgi_input.raw._sock
+        if sock is None:
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,

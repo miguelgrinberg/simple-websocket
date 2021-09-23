@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.4.0** - 2021-09-23
+
+- Close the connection if `socket.recv()` returns 0 bytes [#4](https://github.com/miguelgrinberg/simple-websocket/issues/4) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6a75a742fe28ef6fe30ca901144478c466640967))
+
 **Release 0.3.0** - 2021-08-05
 
 - Handle older versions of gevent [#3](https://github.com/miguelgrinberg/simple-websocket/issues/3) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/5ce50802d053bf04d1f6f8c43569105bc5c0b389))

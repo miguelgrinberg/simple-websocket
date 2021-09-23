@@ -26,6 +26,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_werkzeug(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         })
@@ -45,6 +46,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_gunicorn(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'gunicorn.socket': mock_socket,
         })
@@ -68,6 +70,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_send(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         })
@@ -88,6 +91,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         }, events=[
@@ -104,6 +108,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_split_messages(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         }, events=[
@@ -122,6 +127,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         }, events=[
@@ -132,8 +138,24 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         mock_socket.send.assert_any_call(b"Pong(payload=b'hello')")
 
     @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_empty(self, mock_wsconn):
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.side_effect = [b'x', b'x', b'']
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, events=[
+            [TextMessage('hello')],
+        ])
+        while server.connected:
+            time.sleep(0.01)
+        server.connected = True
+        assert server.receive() == 'hello'
+        assert server.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.WSConnection')
     def test_close(self, mock_wsconn):
         mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         })

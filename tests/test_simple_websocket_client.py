@@ -19,6 +19,7 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_make_client(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws?a=1')
         assert client.sock == mock_socket()
         assert client.receive_bytes == 4096
@@ -35,6 +36,7 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_send(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws')
         while client.connected:
             time.sleep(0.01)
@@ -53,6 +55,7 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
             [TextMessage('hello')],
             [BytesMessage(b'hello')],
@@ -67,6 +70,7 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
             [Ping(b'hello')],
         ])
@@ -76,7 +80,21 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_empty(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.side_effect = [b'x', b'x', b'']
+        client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
+            [TextMessage('hello')],
+        ])
+        while client.connected:
+            time.sleep(0.01)
+        client.connected = True
+        assert client.receive() == 'hello'
+        assert client.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.socket.socket')
+    @mock.patch('simple_websocket.ws.WSConnection')
     def test_close(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws')
         while client.connected:
             time.sleep(0.01)

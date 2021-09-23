@@ -108,6 +108,8 @@ class Base:
         while self.connected:
             try:
                 in_data = self.sock.recv(self.receive_bytes)
+                if len(in_data) == 0:
+                    raise OSError()
             except (OSError, ConnectionResetError):  # pragma: no cover
                 self.connected = False
                 self.event.set()

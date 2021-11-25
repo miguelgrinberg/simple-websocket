@@ -1,3 +1,4 @@
+from datetime import datetime
 import socket
 import ssl
 import threading
@@ -32,10 +33,13 @@ class ConnectionClosed(RuntimeError):
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 thread_class=threading.Thread, event_class=threading.Event,
+                 ping_interval=None):
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.input_buffer = []
+        self.ping_interval = ping_interval
+        self.last_ping_timestamp = datetime.utcnow()
         self.incoming_message = None
         self.event = event_class()
         self.connected = False
@@ -48,6 +52,9 @@ class Base:
             raise ConnectionError()
         self.thread = thread_class(target=self._thread)
         self.thread.start()
+        if self.ping_interval:
+            self.ping_thread = thread_class(target=self.ping)
+            self.ping_thread.start()
 
     def handshake(self):  # pragma: no cover
         # to be implemented by subclasses
@@ -103,6 +110,14 @@ class Base:
         except BrokenPipeError:  # pragma: no cover
             pass
         self.connected = False
+
+    def ping(self):
+        while self.connected:
+            if self.ping_interval:
+                if (datetime.utcnow() - self.last_ping_timestamp).seconds > self.ping_interval:
+                    self.sock.send(self.ws.send(Ping()))
+                    self.last_ping_timestamp = datetime.utcnow()
+                    print(f'Sending Ping @{datetime.utcnow()}')
 
     def _thread(self):
         while self.connected:
@@ -173,7 +188,8 @@ class Server(Base):
                         from the Python standard library.
     """
     def __init__(self, environ, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 thread_class=threading.Thread, event_class=threading.Event,
+                 ping_interval=None):
         self.environ = environ
         sock = None
         if 'werkzeug.socket' in environ:
@@ -197,7 +213,8 @@ class Server(Base):
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class)
+                         thread_class=thread_class, event_class=event_class,
+                         ping_interval=ping_interval)
 
     def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'

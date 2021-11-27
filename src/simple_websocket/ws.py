@@ -251,7 +251,8 @@ class Client(Base):
                         isn't sufficient.
     """
     def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
-                 event_class=threading.Event, ssl_context=None):
+                 event_class=threading.Event, ssl_context=None,
+                 ping_interval=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -269,7 +270,8 @@ class Client(Base):
         sock.connect((self.host, self.port))
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class)
+                         thread_class=thread_class, event_class=event_class,
+                         ping_interval=ping_interval)
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path))

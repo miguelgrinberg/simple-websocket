@@ -12,6 +12,7 @@ from wsproto.events import (
     Message,
     Request,
     Ping,
+    Pong,
     TextMessage,
     BytesMessage,
 )
@@ -40,6 +41,7 @@ class Base:
         self.input_buffer = []
         self.ping_interval = ping_interval
         self.last_ping_timestamp = datetime.utcnow()
+        self.awaiting_pong = False
         self.incoming_message = None
         self.event = event_class()
         self.connected = False
@@ -115,9 +117,12 @@ class Base:
         while self.connected:
             if self.ping_interval:
                 if (datetime.utcnow() - self.last_ping_timestamp).seconds > self.ping_interval:
+                    if self.awaiting_pong:
+                        self.close(message='No Pong Response')
+                        break
                     self.sock.send(self.ws.send(Ping()))
                     self.last_ping_timestamp = datetime.utcnow()
-                    print(f'Sending Ping @{datetime.utcnow()}')
+                    self.awaiting_pong = True
 
     def _thread(self):
         while self.connected:
@@ -156,6 +161,8 @@ class Base:
                     self.input_buffer.append(self.incoming_message)
                     self.incoming_message = None
                     self.event.set()
+                elif isinstance(event, Pong):
+                    self.awaiting_pong = False
                 else:  # pragma: no cover
                     pass
             except LocalProtocolError:  # pragma: no cover

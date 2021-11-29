@@ -32,16 +32,14 @@ class ConnectionClosed(RuntimeError):
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event,
-                 ping_interval=None):
+                 thread_class=threading.Thread, event_class=threading.Event):
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.input_buffer = []
         self.incoming_message = None
         self.event = event_class()
 
-        self.ping_interval = ping_interval
-        self.pong_required = bool(ping_interval)
+        self.pong_required = False
 
         self.connected = False
         self.is_server = (connection_type == ConnectionType.SERVER)
@@ -73,28 +71,33 @@ class Base:
             out_data = self.ws.send(TextMessage(data=str(data)))
         self.sock.send(out_data)
 
-    def receive(self, timeout=None):
+    def receive(self, timeout=None, ping_interval=None):
         """Receive data over the WebSocket connection.
 
         :param timeout: Amount of time to wait for the data, in seconds. Set
                         to ``None`` (the default) to wait undefinitely. Set
                         to 0 to read without blocking.
+        :param ping_interval: If set send ping packets to the other end
+                        after this interval and require a response or other
+                        data to have been received within that time period.
+                        Integer number of seconds.
 
         The data received is returned, as ``bytes`` or ``str``, depending on
         the type of the incoming message.
         """
         while self.connected and not self.input_buffer:
-            if not self.event.wait(timeout=timeout or self.ping_interval):
+            if not self.event.wait(timeout=ping_interval if timeout is None else timeout):
+                if timeout is not None:
+                    return None
+
                 if self.pong_required:
                     # timed out at ping interval and a pong is required
                     self.close(reason=CloseReason.PROTOCOL_ERROR,
                                message="Pong not received within ping interval")
 
-                if self.ping_interval:
+                if ping_interval:
                     self.send(Ping())
                     self.pong_required = True
-                else:
-                    return None
 
             self.event.clear()
         if not self.connected:  # pragma: no cover
@@ -187,14 +190,9 @@ class Server(Base):
     :param event_class: The ``Event`` class to use when creating event
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
-    :param ping_interval: If set send ping packets to the other end
-                        after this interval and require a response or other
-                        data to have been received within that time period.
-                        Integer number of seconds.
     """
     def __init__(self, environ, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event,
-                 ping_interval=None):
+                 thread_class=threading.Thread, event_class=threading.Event):
         self.environ = environ
         sock = None
         if 'werkzeug.socket' in environ:
@@ -218,8 +216,7 @@ class Server(Base):
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class,
-                         ping_interval=ping_interval)
+                         thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'
@@ -247,10 +244,6 @@ class Client(Base):
                         from the Python standard library.
     :param ssl_context: An ``SSLContext`` instance, if a default SSL context
                         isn't sufficient.
-    :param ping_interval: If set send ping packets to the other end
-                        after this interval and require a response or other
-                        data to have been received within that time period.
-                        Integer number of seconds.
     """
     def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
                  event_class=threading.Event, ssl_context=None, ping_interval=None):
@@ -271,8 +264,7 @@ class Client(Base):
         sock.connect((self.host, self.port))
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class,
-                         ping_interval=ping_interval)
+                         thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path))

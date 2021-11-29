@@ -246,7 +246,7 @@ class Client(Base):
                         isn't sufficient.
     """
     def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
-                 event_class=threading.Event, ssl_context=None, ping_interval=None):
+                 event_class=threading.Event, ssl_context=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname

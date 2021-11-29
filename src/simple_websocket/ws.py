@@ -32,12 +32,17 @@ class ConnectionClosed(RuntimeError):
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 thread_class=threading.Thread, event_class=threading.Event,
+                 ping_interval=None):
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.input_buffer = []
         self.incoming_message = None
         self.event = event_class()
+
+        self.ping_interval = ping_interval
+        self.pong_required = bool(ping_interval)
+
         self.connected = False
         self.is_server = (connection_type == ConnectionType.SERVER)
 
@@ -79,8 +84,18 @@ class Base:
         the type of the incoming message.
         """
         while self.connected and not self.input_buffer:
-            if not self.event.wait(timeout=timeout):
-                return None
+            if not self.event.wait(timeout=timeout or self.ping_interval):
+                if self.pong_required:
+                    # timed out at ping interval and a pong is required
+                    self.close(reason=CloseReason.PROTOCOL_ERROR,
+                               message="Pong not received within ping interval")
+
+                if self.ping_interval:
+                    self.send(Ping())
+                    self.pong_required = True
+                else:
+                    return None
+
             self.event.clear()
         if not self.connected:  # pragma: no cover
             raise ConnectionClosed()
@@ -121,6 +136,7 @@ class Base:
         keep_going = True
         out_data = b''
         for event in self.ws.events():
+            self.pong_required = False
             try:
                 if isinstance(event, Request):
                     out_data += self.ws.send(AcceptConnection())
@@ -171,9 +187,14 @@ class Server(Base):
     :param event_class: The ``Event`` class to use when creating event
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
+    :param ping_interval: If set send ping packets to the other end
+                        after this interval and require a response or other
+                        data to have been received within that time period.
+                        Integer number of seconds.
     """
     def __init__(self, environ, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 thread_class=threading.Thread, event_class=threading.Event,
+                 ping_interval=None):
         self.environ = environ
         sock = None
         if 'werkzeug.socket' in environ:
@@ -197,7 +218,8 @@ class Server(Base):
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class)
+                         thread_class=thread_class, event_class=event_class,
+                         ping_interval=ping_interval)
 
     def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'
@@ -225,9 +247,13 @@ class Client(Base):
                         from the Python standard library.
     :param ssl_context: An ``SSLContext`` instance, if a default SSL context
                         isn't sufficient.
+    :param ping_interval: If set send ping packets to the other end
+                        after this interval and require a response or other
+                        data to have been received within that time period.
+                        Integer number of seconds.
     """
     def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
-                 event_class=threading.Event, ssl_context=None):
+                 event_class=threading.Event, ssl_context=None, ping_interval=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -245,7 +271,8 @@ class Client(Base):
         sock.connect((self.host, self.port))
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
-                         thread_class=thread_class, event_class=event_class)
+                         thread_class=thread_class, event_class=event_class,
+                         ping_interval=ping_interval)
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path))

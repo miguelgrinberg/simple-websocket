@@ -4,12 +4,12 @@ from unittest import mock
 import pytest  # noqa: F401
 
 from wsproto.events import Request, CloseConnection, TextMessage, \
-    BytesMessage, Ping
+    BytesMessage, Ping, Pong
 import simple_websocket
 
 
 class SimpleWebSocketServerTestCase(unittest.TestCase):
-    def get_server(self, mock_wsconn, environ, events=[]):
+    def get_server(self, mock_wsconn, environ, events=[], **kwargs):
         mock_wsconn().events.side_effect = \
             [iter(ev) for ev in [[Request(host='example.com', target='/ws')]] +
              events + [[CloseConnection(1000)]]]
@@ -21,7 +21,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': 'Iv8io/9s+lYFgZWcXczP8Q==',
             'HTTP_SEC_WEBSOCKET_VERSION': '13',
         })
-        return simple_websocket.Server(environ)
+        return simple_websocket.Server(environ, **kwargs)
 
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_werkzeug(self, mock_wsconn):
@@ -169,3 +169,26 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         mock_socket.send.assert_called_with(
             b'CloseConnection(code=<CloseReason.NORMAL_CLOSURE: 1000>, '
             b'reason=None)')
+
+    @mock.patch('simple_websocket.ws.WSConnection')
+    @mock.patch('simple_websocket.ws.time')
+    @mock.patch('simple_websocket.ws.selectors')
+    @mock.patch('simple_websocket.ws.threading.Thread')
+    def test_ping_pong(self, mock_threading, mock_selectors, mock_time,
+                       mock_wsconn):
+        mock_sel = mock_selectors.DefaultSelector()
+        mock_sel.select.side_effect = [True, False, True, False, False]
+        mock_time.side_effect = [0, 1, 25.01, 28, 52, 76]
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.side_effect = [b'x', b'x']
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, events=[
+            [TextMessage('hello')],
+            [Pong()],
+        ], ping_interval=25, thread_class=mock.MagicMock())
+        server._thread()
+        assert mock_socket.send.call_count == 4
+        assert mock_socket.send.call_args_list[1][0][0].startswith(b'Ping')
+        assert mock_socket.send.call_args_list[2][0][0].startswith(b'Ping')
+        assert mock_socket.send.call_args_list[3][0][0].startswith(b'Close')

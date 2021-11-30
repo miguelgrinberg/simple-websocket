@@ -1,6 +1,8 @@
+import selectors
 import socket
 import ssl
 import threading
+from time import time
 from urllib.parse import urlsplit
 
 from wsproto import ConnectionType, WSConnection
@@ -11,6 +13,7 @@ from wsproto.events import (
     Message,
     Request,
     Ping,
+    Pong,
     TextMessage,
     BytesMessage,
 )
@@ -32,9 +35,12 @@ class ConnectionClosed(RuntimeError):
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 ping_interval=None, thread_class=threading.Thread,
+                 event_class=threading.Event):
         self.sock = sock
         self.receive_bytes = receive_bytes
+        self.ping_interval = ping_interval
+        self.pong_received = True
         self.input_buffer = []
         self.incoming_message = None
         self.event = event_class()
@@ -105,8 +111,25 @@ class Base:
         self.connected = False
 
     def _thread(self):
+        sel = None
+        if self.ping_interval:
+            next_ping = time() + self.ping_interval
+            sel = selectors.DefaultSelector()
+            sel.register(self.sock, selectors.EVENT_READ, True)
+
         while self.connected:
             try:
+                if sel:
+                    now = time()
+                    if not sel.select(next_ping - now):
+                        # we reached the timeout, we have to send a ping
+                        if not self.pong_received:
+                            self.close(message='Ping/Pong timeout')
+                            break
+                        self.pong_received = False
+                        self.sock.send(self.ws.send(Ping()))
+                        next_ping += self.ping_interval
+                        continue
                 in_data = self.sock.recv(self.receive_bytes)
                 if len(in_data) == 0:
                     raise OSError()
@@ -131,6 +154,8 @@ class Base:
                     keep_going = False
                 elif isinstance(event, Ping):
                     out_data += self.ws.send(event.response())
+                elif isinstance(event, Pong):
+                    self.pong_received = True
                 elif isinstance(event, (TextMessage, BytesMessage)):
                     if self.incoming_message is None:
                         self.incoming_message = event.data
@@ -165,6 +190,13 @@ class Server(Base):
                     currently supported.
     :param receive_bytes: The size of the receive buffer, in bytes. The
                           default is 4096.
+    :param ping_interval: Send ping packets to clients at the requested
+                          interval in seconds. Set to ``None`` (the default) to
+                          disable ping/pong logic. Enable to prevent
+                          disconnections when the line is idle for a certain
+                          amount of time, or to detect unresponsive clients and
+                          disconnect them. A recommended interval is 25
+                          seconds.
     :param thread_class: The ``Thread`` class to use when creating background
                          threads. The default is the ``threading.Thread``
                          class from the Python standard library.
@@ -172,7 +204,7 @@ class Server(Base):
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
     """
-    def __init__(self, environ, receive_bytes=4096,
+    def __init__(self, environ, receive_bytes=4096, ping_interval=None,
                  thread_class=threading.Thread, event_class=threading.Event):
         self.environ = environ
         sock = None
@@ -197,6 +229,7 @@ class Server(Base):
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
+                         ping_interval=ping_interval,
                          thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
@@ -217,6 +250,15 @@ class Client(Base):
                 accepted.
     :param receive_bytes: The size of the receive buffer, in bytes. The
                           default is 4096.
+    :param ping_interval: Send ping packets to the server at the requested
+                          interval in seconds. Set to ``None`` (the default) to
+                          disable ping/pong logic. Enable to prevent
+                          disconnections when the line is idle for a certain
+                          amount of time, or to detect an unresponsive server
+                          and disconnect. A recommended interval is 25 seconds.
+                          In general it is preferred to enable ping/pong on the
+                          server, and let the client respond with pong (which
+                          it does regardless of this setting).
     :param thread_class: The ``Thread`` class to use when creating background
                          threads. The default is the ``threading.Thread``
                          class from the Python standard library.
@@ -226,8 +268,9 @@ class Client(Base):
     :param ssl_context: An ``SSLContext`` instance, if a default SSL context
                         isn't sufficient.
     """
-    def __init__(self, url, receive_bytes=4096, thread_class=threading.Thread,
-                 event_class=threading.Event, ssl_context=None):
+    def __init__(self, url, receive_bytes=4096, ping_interval=None,
+                 thread_class=threading.Thread, event_class=threading.Event,
+                 ssl_context=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -245,6 +288,7 @@ class Client(Base):
         sock.connect((self.host, self.port))
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
+                         ping_interval=ping_interval,
                          thread_class=thread_class, event_class=event_class)
 
     def handshake(self):

@@ -1,5 +1,12 @@
 # simple-websocket change log
 
+**Release 0.5.0** - 2021-12-04
+
+- Added optional WebSocket Ping/Pong mechanism [#6](https://github.com/miguelgrinberg/simple-websocket/issues/6) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6f13cdf74abf8627af53e03df2e84db204392a21))
+- Option to set a maximum message size [#5](https://github.com/miguelgrinberg/simple-websocket/issues/5) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/b285024fc3fd75910d166fa5ad258490b70d1326))
+- Store close reason in `ConnectionClosed` exception [#9](https://github.com/miguelgrinberg/simple-websocket/issues/9) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/91eaa52c659e69307e1b3a64329aafc81e3b4625))
+- Option configure a custom selector class ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/1b3dcf77c2aba7ccc6b0f108744f46575ef190b8))
+
 **Release 0.4.0** - 2021-09-23
 
 - Close the connection if `socket.recv()` returns 0 bytes [#4](https://github.com/miguelgrinberg/simple-websocket/issues/4) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6a75a742fe28ef6fe30ca901144478c466640967))

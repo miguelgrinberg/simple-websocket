@@ -153,6 +153,22 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         assert server.receive(timeout=0) is None
 
     @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_large(self, mock_wsconn):
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, events=[
+            [TextMessage('hello')],
+            [TextMessage('hello1')],
+        ], max_message_size=5)
+        while server.connected:
+            time.sleep(0.01)
+        server.connected = True
+        assert server.receive() == 'hello'
+        assert server.receive(timeout=0) is None
+
+    @mock.patch('simple_websocket.ws.WSConnection')
     def test_close(self, mock_wsconn):
         mock_socket = mock.MagicMock()
         mock_socket.recv.return_value = b'x'

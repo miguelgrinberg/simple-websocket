@@ -35,11 +35,12 @@ class ConnectionClosed(RuntimeError):
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 ping_interval=None, thread_class=threading.Thread,
-                 event_class=threading.Event):
+                 ping_interval=None, max_message_size=None,
+                 thread_class=threading.Thread, event_class=threading.Event):
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.ping_interval = ping_interval
+        self.max_message_size = max_message_size
         self.pong_received = True
         self.input_buffer = []
         self.incoming_message = None
@@ -124,7 +125,8 @@ class Base:
                     if not sel.select(next_ping - now):
                         # we reached the timeout, we have to send a ping
                         if not self.pong_received:
-                            self.close(message='Ping/Pong timeout')
+                            self.close(reason=CloseReason.POLICY_VIOLATION,
+                                       message='Ping/Pong timeout')
                             break
                         self.pong_received = False
                         self.sock.send(self.ws.send(Ping()))
@@ -157,6 +159,13 @@ class Base:
                 elif isinstance(event, Pong):
                     self.pong_received = True
                 elif isinstance(event, (TextMessage, BytesMessage)):
+                    if self.max_message_size and \
+                            len(event.data) > self.max_message_size:
+                        out_data += self.ws.send(CloseConnection(
+                            CloseReason.MESSAGE_TOO_BIG, 'Message is too big'))
+                        self.event.set()
+                        keep_going = False
+                        break
                     if self.incoming_message is None:
                         self.incoming_message = event.data
                     else:
@@ -197,6 +206,8 @@ class Server(Base):
                           amount of time, or to detect unresponsive clients and
                           disconnect them. A recommended interval is 25
                           seconds.
+    :param max_message_size: The maximum size allowed for a message, in bytes,
+                             or ``None`` for no limit. The default is ``None``.
     :param thread_class: The ``Thread`` class to use when creating background
                          threads. The default is the ``threading.Thread``
                          class from the Python standard library.
@@ -205,7 +216,8 @@ class Server(Base):
                         from the Python standard library.
     """
     def __init__(self, environ, receive_bytes=4096, ping_interval=None,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 max_message_size=None, thread_class=threading.Thread,
+                 event_class=threading.Event):
         self.environ = environ
         sock = None
         if 'werkzeug.socket' in environ:
@@ -230,6 +242,7 @@ class Server(Base):
         super().__init__(sock, connection_type=ConnectionType.SERVER,
                          receive_bytes=receive_bytes,
                          ping_interval=ping_interval,
+                         max_message_size=max_message_size,
                          thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
@@ -259,6 +272,8 @@ class Client(Base):
                           In general it is preferred to enable ping/pong on the
                           server, and let the client respond with pong (which
                           it does regardless of this setting).
+    :param max_message_size: The maximum size allowed for a message, in bytes,
+                             or ``None`` for no limit. The default is ``None``.
     :param thread_class: The ``Thread`` class to use when creating background
                          threads. The default is the ``threading.Thread``
                          class from the Python standard library.
@@ -269,8 +284,8 @@ class Client(Base):
                         isn't sufficient.
     """
     def __init__(self, url, receive_bytes=4096, ping_interval=None,
-                 thread_class=threading.Thread, event_class=threading.Event,
-                 ssl_context=None):
+                 max_message_size=None, thread_class=threading.Thread,
+                 event_class=threading.Event, ssl_context=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -289,6 +304,7 @@ class Client(Base):
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
                          ping_interval=ping_interval,
+                         max_message_size=max_message_size,
                          thread_class=thread_class, event_class=event_class)
 
     def handshake(self):

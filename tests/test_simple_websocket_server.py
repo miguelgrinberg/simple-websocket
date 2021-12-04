@@ -12,7 +12,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     def get_server(self, mock_wsconn, environ, events=[], **kwargs):
         mock_wsconn().events.side_effect = \
             [iter(ev) for ev in [[Request(host='example.com', target='/ws')]] +
-             events + [[CloseConnection(1000)]]]
+             events + [[CloseConnection(1000, 'bye')]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
         environ.update({
             'HTTP_HOST': 'example.com',
@@ -177,8 +177,9 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         })
         while server.connected:
             time.sleep(0.01)
-        with pytest.raises(simple_websocket.ConnectionClosed):
+        with pytest.raises(simple_websocket.ConnectionClosed) as exc:
             server.close()
+        assert str(exc.value) == 'Connection closed 1000 bye'
         server.connected = True
         server.close()
         assert not server.connected

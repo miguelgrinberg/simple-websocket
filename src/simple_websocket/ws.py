@@ -30,7 +30,10 @@ class ConnectionError(RuntimeError):  # pragma: no cover
 
 class ConnectionClosed(RuntimeError):
     """Connection closed exception class."""
-    pass
+    def __init__(self, reason=CloseReason.NO_STATUS_RCVD, message=None):
+        self.reason = reason
+        self.message = message
+        super().__init__(f'Connection closed {reason} {message}')
 
 
 class Base:
@@ -68,7 +71,7 @@ class Base:
                      text format.
         """
         if not self.connected:
-            raise ConnectionClosed()
+            raise ConnectionClosed(self.close_reason, self.close_message)
         if isinstance(data, bytes):
             out_data = self.ws.send(Message(data=data))
         else:
@@ -90,7 +93,7 @@ class Base:
                 return None
             self.event.clear()
         if not self.connected:  # pragma: no cover
-            raise ConnectionClosed()
+            raise ConnectionClosed(self.close_reason, self.close_message)
         return self.input_buffer.pop(0)
 
     def close(self, reason=None, message=None):
@@ -102,7 +105,7 @@ class Base:
         :param message: A text message to be sent to the other side.
         """
         if not self.connected:
-            raise ConnectionClosed()
+            raise ConnectionClosed(self.close_reason, self.close_message)
         out_data = self.ws.send(CloseConnection(
             reason or CloseReason.NORMAL_CLOSURE, message))
         try:
@@ -152,6 +155,8 @@ class Base:
                 elif isinstance(event, CloseConnection):
                     if self.is_server:
                         out_data += self.ws.send(event.response())
+                    self.close_reason = event.code
+                    self.close_message = event.reason
                     self.event.set()
                     keep_going = False
                 elif isinstance(event, Ping):

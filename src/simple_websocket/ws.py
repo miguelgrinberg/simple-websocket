@@ -1,7 +1,6 @@
 import selectors
 import socket
 import ssl
-import threading
 from time import time
 from urllib.parse import urlsplit
 
@@ -25,7 +24,7 @@ class ConnectionError(RuntimeError):  # pragma: no cover
     """Connection error exception class."""
     def __init__(self, status_code=None):
         self.status_code = status_code
-        super().__init__(f'Connection error {status_code}')
+        super().__init__(f'Connection error: {status_code}')
 
 
 class ConnectionClosed(RuntimeError):
@@ -33,13 +32,13 @@ class ConnectionClosed(RuntimeError):
     def __init__(self, reason=CloseReason.NO_STATUS_RCVD, message=None):
         self.reason = reason
         self.message = message
-        super().__init__(f'Connection closed {reason} {message}')
+        super().__init__(f'Connection closed: {reason} {message or ""}')
 
 
 class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
                  ping_interval=None, max_message_size=None,
-                 thread_class=threading.Thread, event_class=threading.Event):
+                 thread_class=None, event_class=None, selector_class=None):
         self.sock = sock
         self.receive_bytes = receive_bytes
         self.ping_interval = ping_interval
@@ -47,9 +46,23 @@ class Base:
         self.pong_received = True
         self.input_buffer = []
         self.incoming_message = None
-        self.event = event_class()
         self.connected = False
         self.is_server = (connection_type == ConnectionType.SERVER)
+        self.close_reason = CloseReason.NO_STATUS_RCVD
+        self.close_message = None
+
+        if thread_class is None:
+            import threading
+            thread_class = threading.Thread
+        if event_class is None:  # pragma: no branch
+            import threading
+            event_class = threading.Event
+        if selector_class is None:
+            import selectors
+            selector_class = selectors.DefaultSelector
+
+        self.event = event_class()
+        self.selector = selector_class()
 
         self.ws = WSConnection(connection_type)
         self.handshake()
@@ -118,7 +131,7 @@ class Base:
         sel = None
         if self.ping_interval:
             next_ping = time() + self.ping_interval
-            sel = selectors.DefaultSelector()
+            sel = self.selector
             sel.register(self.sock, selectors.EVENT_READ, True)
 
         while self.connected:
@@ -219,10 +232,14 @@ class Server(Base):
     :param event_class: The ``Event`` class to use when creating event
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
+    :param selector_class: The ``Selector`` class to use when creating
+                           selectors. The default is the
+                           ``selectors.DefaultSelector`` class from the Python
+                           standard library.
     """
     def __init__(self, environ, receive_bytes=4096, ping_interval=None,
-                 max_message_size=None, thread_class=threading.Thread,
-                 event_class=threading.Event):
+                 max_message_size=None, thread_class=None, event_class=None,
+                 selector_class=None):
         self.environ = environ
         sock = None
         if 'werkzeug.socket' in environ:
@@ -248,7 +265,8 @@ class Server(Base):
                          receive_bytes=receive_bytes,
                          ping_interval=ping_interval,
                          max_message_size=max_message_size,
-                         thread_class=thread_class, event_class=event_class)
+                         thread_class=thread_class, event_class=event_class,
+                         selector_class=selector_class)
 
     def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'
@@ -279,18 +297,18 @@ class Client(Base):
                           it does regardless of this setting).
     :param max_message_size: The maximum size allowed for a message, in bytes,
                              or ``None`` for no limit. The default is ``None``.
+    :param ssl_context: An ``SSLContext`` instance, if a default SSL context
+                        isn't sufficient.
     :param thread_class: The ``Thread`` class to use when creating background
                          threads. The default is the ``threading.Thread``
                          class from the Python standard library.
     :param event_class: The ``Event`` class to use when creating event
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
-    :param ssl_context: An ``SSLContext`` instance, if a default SSL context
-                        isn't sufficient.
     """
     def __init__(self, url, receive_bytes=4096, ping_interval=None,
-                 max_message_size=None, thread_class=threading.Thread,
-                 event_class=threading.Event, ssl_context=None):
+                 max_message_size=None, ssl_context=None, thread_class=None,
+                 event_class=None, selector_class=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname

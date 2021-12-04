@@ -179,7 +179,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             time.sleep(0.01)
         with pytest.raises(simple_websocket.ConnectionClosed) as exc:
             server.close()
-        assert str(exc.value) == 'Connection closed 1000 bye'
+        assert str(exc.value) == 'Connection closed: 1000 bye'
         server.connected = True
         server.close()
         assert not server.connected
@@ -189,21 +189,19 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
 
     @mock.patch('simple_websocket.ws.WSConnection')
     @mock.patch('simple_websocket.ws.time')
-    @mock.patch('simple_websocket.ws.selectors')
-    @mock.patch('simple_websocket.ws.threading.Thread')
-    def test_ping_pong(self, mock_threading, mock_selectors, mock_time,
-                       mock_wsconn):
-        mock_sel = mock_selectors.DefaultSelector()
-        mock_sel.select.side_effect = [True, False, True, False, False]
+    def test_ping_pong(self, mock_time, mock_wsconn):
+        mock_sel = mock.MagicMock()
+        mock_sel().select.side_effect = [True, False, True, False, False]
         mock_time.side_effect = [0, 1, 25.01, 28, 52, 76]
         mock_socket = mock.MagicMock()
         mock_socket.recv.side_effect = [b'x', b'x']
-        server = self.get_server(mock_wsconn, {
-            'werkzeug.socket': mock_socket,
-        }, events=[
-            [TextMessage('hello')],
-            [Pong()],
-        ], ping_interval=25, thread_class=mock.MagicMock())
+        server = self.get_server(
+            mock_wsconn, {'werkzeug.socket': mock_socket},
+            events=[
+                [TextMessage('hello')],
+                [Pong()],
+            ], ping_interval=25, thread_class=mock.MagicMock(),
+            selector_class=mock_sel)
         server._thread()
         assert mock_socket.send.call_count == 4
         assert mock_socket.send.call_args_list[1][0][0].startswith(b'Ping')

@@ -241,16 +241,20 @@ class Server(Base):
                  max_message_size=None, thread_class=None, event_class=None,
                  selector_class=None):
         self.environ = environ
+        self.mode = 'unknown'
         sock = None
         if 'werkzeug.socket' in environ:
             # extract socket from Werkzeug's WSGI environment
             sock = environ.get('werkzeug.socket')
+            self.mode = 'werkzeug'
         elif 'gunicorn.socket' in environ:
             # extract socket from Gunicorn WSGI environment
             sock = environ.get('gunicorn.socket')
+            self.mode = 'gunicorn'
         elif 'eventlet.input' in environ:  # pragma: no cover
             # extract socket from Eventlet's WSGI environment
             sock = environ.get('eventlet.input').get_socket()
+            self.mode = 'eventlet'
         elif environ.get('SERVER_SOFTWARE', '').startswith(
                 'gevent'):  # pragma: no cover
             # extract socket from Gevent's WSGI environment
@@ -259,6 +263,7 @@ class Server(Base):
                 wsgi_input = wsgi_input.rfile
             if hasattr(wsgi_input, 'raw'):
                 sock = wsgi_input.raw._sock
+                self.mode = 'gevent'
         if sock is None:
             raise RuntimeError('Cannot obtain socket from WSGI environment.')
         super().__init__(sock, connection_type=ConnectionType.SERVER,

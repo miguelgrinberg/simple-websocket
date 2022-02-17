@@ -31,6 +31,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             'werkzeug.socket': mock_socket,
         })
         assert server.sock == mock_socket
+        assert server.mode == 'werkzeug'
         assert server.receive_bytes == 4096
         assert server.input_buffer == []
         assert server.event.__class__.__name__ == 'Event'
@@ -51,6 +52,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             'gunicorn.socket': mock_socket,
         })
         assert server.sock == mock_socket
+        assert server.mode == 'gunicorn'
         assert server.receive_bytes == 4096
         assert server.input_buffer == []
         assert server.event.__class__.__name__ == 'Event'

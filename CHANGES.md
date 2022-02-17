@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.5.1** - 2022-02-17
+
+- Store the detected WebSocket mode in server ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/145e3be63ad1de75eedbcfc193eb304767607bc8))
+
 **Release 0.5.0** - 2021-12-04
 
 - Added optional WebSocket Ping/Pong mechanism [#6](https://github.com/miguelgrinberg/simple-websocket/issues/6) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6f13cdf74abf8627af53e03df2e84db204392a21))

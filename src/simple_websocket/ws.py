@@ -16,6 +16,7 @@ from wsproto.events import (
     TextMessage,
     BytesMessage,
 )
+from wsproto.extensions import PerMessageDeflate
 from wsproto.frame_protocol import CloseReason
 from wsproto.utilities import LocalProtocolError
 
@@ -164,7 +165,8 @@ class Base:
         for event in self.ws.events():
             try:
                 if isinstance(event, Request):
-                    out_data += self.ws.send(AcceptConnection())
+                    out_data += self.ws.send(AcceptConnection(
+                        extensions=[PerMessageDeflate()]))
                 elif isinstance(event, CloseConnection):
                     if self.is_server:
                         out_data += self.ws.send(event.response())

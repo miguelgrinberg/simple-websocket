@@ -1,5 +1,10 @@
 # simple-websocket change log
 
+**Release 0.5.2** - 2022-04-12
+
+- Compression support [#11](https://github.com/miguelgrinberg/simple-websocket/issues/11) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/9277e67140a456bd34e09146732d4bdca0c6db12))
+- Update builds for python 3.10 and pypy3.8 ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/f44674fd8ec42b05e6ebc0571cb53ba60d3ce144))
+
 **Release 0.5.1** - 2022-02-17
 
 - Store the detected WebSocket mode in server ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/145e3be63ad1de75eedbcfc193eb304767607bc8))

@@ -187,7 +187,7 @@ class Base:
                         keep_going = False
                         break
                     if self.incoming_message is None:
-                        self.incoming_message = event.data
+                        self.incoming_message = bytearray(event.data)
                     else:
                         self.incoming_message += event.data
                     if not event.message_finished:

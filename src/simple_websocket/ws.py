@@ -178,7 +178,7 @@ class Base:
                     out_data += self.ws.send(event.response())
                 elif isinstance(event, Pong):
                     self.pong_received = True
-                elif isinstance(event, (TextMessage, BytesMessage)):
+                elif isinstance(event, TextMessage):
                     if self.max_message_size and \
                             len(event.data) > self.max_message_size:
                         out_data += self.ws.send(CloseConnection(
@@ -187,10 +187,24 @@ class Base:
                         keep_going = False
                         break
                     if self.incoming_message is None:
-                        if isinstance(event, (TextMessage)):
                             self.incoming_message = event.data
-                        else:
-                            self.incoming_message = bytearray(event.data)
+                    else:
+                        self.incoming_message += event.data
+                    if not event.message_finished:
+                        continue
+                    self.input_buffer.append(self.incoming_message)
+                    self.incoming_message = None
+                    self.event.set()
+                elif isinstance(event, BytesMessage):
+                    if self.max_message_size and \
+                            len(event.data) > self.max_message_size:
+                        out_data += self.ws.send(CloseConnection(
+                            CloseReason.MESSAGE_TOO_BIG, 'Message is too big'))
+                        self.event.set()
+                        keep_going = False
+                        break
+                    if self.incoming_message is None:
+                        self.incoming_message = bytearray(event.data)
                     else:
                         self.incoming_message += event.data
                     if not event.message_finished:

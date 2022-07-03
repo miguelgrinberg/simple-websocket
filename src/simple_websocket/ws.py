@@ -47,6 +47,7 @@ class Base:
         self.pong_received = True
         self.input_buffer = []
         self.incoming_message = None
+        self.incoming_message_len = 0
         self.connected = False
         self.is_server = (connection_type == ConnectionType.SERVER)
         self.close_reason = CloseReason.NO_STATUS_RCVD
@@ -179,21 +180,51 @@ class Base:
                 elif isinstance(event, Pong):
                     self.pong_received = True
                 elif isinstance(event, (TextMessage, BytesMessage)):
+                    self.incoming_message_len += len(event.data)
                     if self.max_message_size and \
-                            len(event.data) > self.max_message_size:
+                            self.incoming_message_len > self.max_message_size:
                         out_data += self.ws.send(CloseConnection(
                             CloseReason.MESSAGE_TOO_BIG, 'Message is too big'))
                         self.event.set()
                         keep_going = False
                         break
                     if self.incoming_message is None:
+                        # store message as is first
+                        # if it is the first of a group, the message will be
+                        # converted to bytearray on arrival of the second
+                        # part, since bytearrays are mutable and can be
+                        # concatenated more efficiently
                         self.incoming_message = event.data
+                    elif isinstance(event, TextMessage):
+                        if not isinstance(self.incoming_message, bytearray):
+                            # convert to bytearray and append
+                            self.incoming_message = bytearray(
+                                (self.incoming_message + event.data).encode())
+                        else:
+                            # append to bytearray
+                            self.incoming_message += event.data.encode()
                     else:
-                        self.incoming_message += event.data
+                        if not isinstance(self.incoming_message, bytearray):
+                            # convert to mutable bytearray and append
+                            self.incoming_message = bytearray(
+                                self.incoming_message + event.data)
+                        else:
+                            # append to bytearray
+                            self.incoming_message += event.data
                     if not event.message_finished:
                         continue
-                    self.input_buffer.append(self.incoming_message)
+                    if isinstance(self.incoming_message, (str, bytes)):
+                        # single part message
+                        self.input_buffer.append(self.incoming_message)
+                    elif isinstance(event, TextMessage):
+                        # convert multi-part message back to text
+                        self.input_buffer.append(
+                            self.incoming_message.decode())
+                    else:
+                        # convert multi-part message back to bytes
+                        self.input_buffer.append(bytes(self.incoming_message))
                     self.incoming_message = None
+                    self.incoming_message_len = 0
                     self.event.set()
                 else:  # pragma: no cover
                     pass
@@ -325,7 +356,7 @@ class Client(Base):
             self.path += '?' + parsed_url.query
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if is_secure:
+        if is_secure:  # pragma: no cover
             if ssl_context is None:
                 ssl_context = ssl.create_default_context(
                     purpose=ssl.Purpose.SERVER_AUTH)

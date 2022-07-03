@@ -116,13 +116,21 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         }, events=[
             [TextMessage('hel', message_finished=False)],
             [TextMessage('lo')],
+            [TextMessage('he', message_finished=False)],
+            [TextMessage('l', message_finished=False)],
+            [TextMessage('lo')],
             [BytesMessage(b'hel', message_finished=False)],
+            [BytesMessage(b'lo')],
+            [BytesMessage(b'he', message_finished=False)],
+            [BytesMessage(b'l', message_finished=False)],
             [BytesMessage(b'lo')],
         ])
         while server.connected:
             time.sleep(0.01)
         server.connected = True
         assert server.receive() == 'hello'
+        assert server.receive() == 'hello'
+        assert server.receive() == b'hello'
         assert server.receive() == b'hello'
         assert server.receive(timeout=0) is None
 

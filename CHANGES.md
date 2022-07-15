@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.6.0** - 2022-07-15
+
+- Improved performance of multi-part messages [#15](https://github.com/miguelgrinberg/simple-websocket/issues/15) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/ca2ea38520229ef7c881690667f23b99506f54a3))
+
 **Release 0.5.2** - 2022-04-12
 
 - Compression support [#11](https://github.com/miguelgrinberg/simple-websocket/issues/11) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/9277e67140a456bd34e09146732d4bdca0c6db12))

@@ -140,7 +140,7 @@ class Base:
             try:
                 if sel:
                     now = time()
-                    if not sel.select(next_ping - now):
+                    if next_ping <= now or not sel.select(next_ping - now):
                         # we reached the timeout, we have to send a ping
                         if not self.pong_received:
                             self.close(reason=CloseReason.POLICY_VIOLATION,
@@ -148,7 +148,7 @@ class Base:
                             break
                         self.pong_received = False
                         self.sock.send(self.ws.send(Ping()))
-                        next_ping += self.ping_interval
+                        next_ping = now + self.ping_interval
                         continue
                 in_data = self.sock.recv(self.receive_bytes)
                 if len(in_data) == 0:

@@ -201,8 +201,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
     @mock.patch('simple_websocket.ws.time')
     def test_ping_pong(self, mock_time, mock_wsconn):
         mock_sel = mock.MagicMock()
-        mock_sel().select.side_effect = [True, False, True, False, False]
-        mock_time.side_effect = [0, 1, 25.01, 28, 52, 76]
+        mock_sel().select.side_effect = [True, True, False, False]
+        mock_time.side_effect = [0, 1, 25.01, 25.02, 28, 52, 76]
         mock_socket = mock.MagicMock()
         mock_socket.recv.side_effect = [b'x', b'x']
         server = self.get_server(

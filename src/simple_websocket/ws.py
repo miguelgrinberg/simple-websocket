@@ -148,7 +148,7 @@ class Base:
                             break
                         self.pong_received = False
                         self.sock.send(self.ws.send(Ping()))
-                        next_ping = now + self.ping_interval
+                        next_ping = max(now, next_ping) + self.ping_interval
                         continue
                 in_data = self.sock.recv(self.receive_bytes)
                 if len(in_data) == 0:

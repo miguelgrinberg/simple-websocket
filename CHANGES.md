@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.7.0** - 2022-07-24
+
+- More robust handling of ping intervals [#16](https://github.com/miguelgrinberg/simple-websocket/issues/16) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/05185122a0d2548d5cbd7c3d650db9c9dd49fa76) [commit](https://github.com/miguelgrinberg/simple-websocket/commit/08bd663a918669fb12e805e08a73cae7d7aac3a1))
+
 **Release 0.6.0** - 2022-07-15
 
 - Improved performance of multi-part messages [#15](https://github.com/miguelgrinberg/simple-websocket/issues/15) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/ca2ea38520229ef7c881690667f23b99506f54a3))

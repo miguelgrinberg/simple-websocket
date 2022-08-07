@@ -41,6 +41,7 @@ class Base:
                  ping_interval=None, max_message_size=None,
                  thread_class=None, event_class=None, selector_class=None):
         self.sock = sock
+        self.subprotocol = None
         self.receive_bytes = receive_bytes
         self.ping_interval = ping_interval
         self.max_message_size = max_message_size
@@ -129,6 +130,19 @@ class Base:
             pass
         self.connected = False
 
+    def choose_subprotocol(self, request):  # pragma: no cover
+        """Choose a subprotocol to use for the WebSocket connection.
+
+        The default implementation does not accept any subprotocols. Subclasses
+        can override this method to implement subprotocol negotiation.
+
+        :param request: A ``Request`` object.
+
+        The method should return the subprotocol to use, or ``None`` if no
+        subprotocol is chosen.
+        """
+        return None
+
     def _thread(self):
         sel = None
         if self.ping_interval:
@@ -166,7 +180,9 @@ class Base:
         for event in self.ws.events():
             try:
                 if isinstance(event, Request):
+                    self.subprotocol = self.choose_subprotocol(event)
                     out_data += self.ws.send(AcceptConnection(
+                        subprotocol=self.subprotocol,
                         extensions=[PerMessageDeflate()]))
                 elif isinstance(event, CloseConnection):
                     if self.is_server:
@@ -248,6 +264,8 @@ class Server(Base):
                     does this in its own different way. Werkzeug, Gunicorn,
                     Eventlet and Gevent are the only web servers that are
                     currently supported.
+    :param subprotocols: A list of supported subprotocols, or ``None`` (the
+                         default) to disable subprotocol negotiation.
     :param receive_bytes: The size of the receive buffer, in bytes. The
                           default is 4096.
     :param ping_interval: Send ping packets to clients at the requested
@@ -270,10 +288,11 @@ class Server(Base):
                            ``selectors.DefaultSelector`` class from the Python
                            standard library.
     """
-    def __init__(self, environ, receive_bytes=4096, ping_interval=None,
-                 max_message_size=None, thread_class=None, event_class=None,
-                 selector_class=None):
+    def __init__(self, environ, subprotocols=None, receive_bytes=4096,
+                 ping_interval=None, max_message_size=None, thread_class=None,
+                 event_class=None, selector_class=None):
         self.environ = environ
+        self.subprotocols = subprotocols
         self.mode = 'unknown'
         sock = None
         if 'werkzeug.socket' in environ:
@@ -316,12 +335,23 @@ class Server(Base):
         self.ws.receive_data(in_data)
         self.connected = self._handle_events()
 
+    def choose_subprotocol(self, request):
+        print(request.subprotocols)
+        print(self.subprotocols)
+        for subprotocol in request.subprotocols:
+            if subprotocol in self.subprotocols:
+                return subprotocol
+        return None
+
 
 class Client(Base):
     """This class implements a WebSocket client.
 
     :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
                 accepted.
+    :param subprotocols: The name of the subprotocol to use, or a list of
+                         subprotocol names in order of preference. Set to
+                         ``None`` (the default) to not use a subprotocol.
     :param receive_bytes: The size of the receive buffer, in bytes. The
                           default is 4096.
     :param ping_interval: Send ping packets to the server at the requested
@@ -344,9 +374,9 @@ class Client(Base):
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
     """
-    def __init__(self, url, receive_bytes=4096, ping_interval=None,
-                 max_message_size=None, ssl_context=None, thread_class=None,
-                 event_class=None, selector_class=None):
+    def __init__(self, url, subprotocols=None, receive_bytes=4096,
+                 ping_interval=None, max_message_size=None, ssl_context=None,
+                 thread_class=None, event_class=None, selector_class=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -354,6 +384,9 @@ class Client(Base):
         self.path = parsed_url.path
         if parsed_url.query:
             self.path += '?' + parsed_url.query
+        self.subprotocols = subprotocols or []
+        if isinstance(self.subprotocols, str):
+            self.subprotocols = [self.subprotocols]
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if is_secure:  # pragma: no cover
@@ -369,7 +402,8 @@ class Client(Base):
                          thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
-        out_data = self.ws.send(Request(host=self.host, target=self.path))
+        out_data = self.ws.send(Request(host=self.host, target=self.path,
+                                        subprotocols=self.subprotocols or []))
         self.sock.send(out_data)
 
         in_data = self.sock.recv(self.receive_bytes)
@@ -379,6 +413,7 @@ class Client(Base):
             raise ConnectionError(event.status_code)
         elif not isinstance(event, AcceptConnection):  # pragma: no cover
             raise ConnectionError(400)
+        self.subprotocol = event.subprotocol
         self.connected = True
 
     def close(self, reason=None, message=None):

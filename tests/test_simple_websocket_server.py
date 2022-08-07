@@ -9,9 +9,13 @@ import simple_websocket
 
 
 class SimpleWebSocketServerTestCase(unittest.TestCase):
-    def get_server(self, mock_wsconn, environ, events=[], **kwargs):
+    def get_server(self, mock_wsconn, environ, events=[],
+                   client_subprotocols=None, server_subprotocols=None,
+                   **kwargs):
         mock_wsconn().events.side_effect = \
-            [iter(ev) for ev in [[Request(host='example.com', target='/ws')]] +
+            [iter(ev) for ev in [[
+                Request(host='example.com', target='/ws',
+                        subprotocols=client_subprotocols or [])]] +
              events + [[CloseConnection(1000, 'bye')]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
         environ.update({
@@ -21,7 +25,8 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': 'Iv8io/9s+lYFgZWcXczP8Q==',
             'HTTP_SEC_WEBSOCKET_VERSION': '13',
         })
-        return simple_websocket.Server(environ, **kwargs)
+        return simple_websocket.Server(
+            environ, subprotocols=server_subprotocols, **kwargs)
 
     @mock.patch('simple_websocket.ws.WSConnection')
     def test_werkzeug(self, mock_wsconn):
@@ -217,3 +222,29 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         assert mock_socket.send.call_args_list[1][0][0].startswith(b'Ping')
         assert mock_socket.send.call_args_list[2][0][0].startswith(b'Ping')
         assert mock_socket.send.call_args_list[3][0][0].startswith(b'Close')
+
+    @mock.patch('simple_websocket.ws.WSConnection')
+    def test_subprotocols(self, mock_wsconn):
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b'x'
+
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, client_subprotocols=['foo', 'bar'], server_subprotocols=['bar'])
+        while server.connected:
+            time.sleep(0.01)
+        assert server.subprotocol == 'bar'
+
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, client_subprotocols=['foo'], server_subprotocols=['foo', 'bar'])
+        while server.connected:
+            time.sleep(0.01)
+        assert server.subprotocol == 'foo'
+
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, client_subprotocols=['foo'], server_subprotocols=['bar', 'baz'])
+        while server.connected:
+            time.sleep(0.01)
+        assert server.subprotocol is None

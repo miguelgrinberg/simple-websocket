@@ -336,8 +336,6 @@ class Server(Base):
         self.connected = self._handle_events()
 
     def choose_subprotocol(self, request):
-        print(request.subprotocols)
-        print(self.subprotocols)
         for subprotocol in request.subprotocols:
             if subprotocol in self.subprotocols:
                 return subprotocol

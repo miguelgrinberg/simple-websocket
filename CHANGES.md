@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.8.0** - 2022-08-08
+
+- Support for subprotocol negotiation [#17](https://github.com/miguelgrinberg/simple-websocket/issues/17) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/04baf871e05e99d80c8905e9e9b0ff4be322e71f))
+
 **Release 0.7.0** - 2022-07-24
 
 - More robust handling of ping intervals [#16](https://github.com/miguelgrinberg/simple-websocket/issues/16) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/05185122a0d2548d5cbd7c3d650db9c9dd49fa76) [commit](https://github.com/miguelgrinberg/simple-websocket/commit/08bd663a918669fb12e805e08a73cae7d7aac3a1))

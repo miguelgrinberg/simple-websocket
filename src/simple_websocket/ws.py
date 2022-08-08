@@ -40,8 +40,10 @@ class Base:
     def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
                  ping_interval=None, max_message_size=None,
                  thread_class=None, event_class=None, selector_class=None):
-        self.sock = sock
+        #: The name of the subprotocol chosen for the WebSocket connection.
         self.subprotocol = None
+
+        self.sock = sock
         self.receive_bytes = receive_bytes
         self.ping_interval = ping_interval
         self.max_message_size = max_message_size
@@ -131,16 +133,9 @@ class Base:
         self.connected = False
 
     def choose_subprotocol(self, request):  # pragma: no cover
-        """Choose a subprotocol to use for the WebSocket connection.
-
-        The default implementation does not accept any subprotocols. Subclasses
-        can override this method to implement subprotocol negotiation.
-
-        :param request: A ``Request`` object.
-
-        The method should return the subprotocol to use, or ``None`` if no
-        subprotocol is chosen.
-        """
+        # The method should return the subprotocol to use, or ``None`` if no
+        # subprotocol is chosen. Can be overridden by subclasses that implement
+        # the server-side of the WebSocket protocol.
         return None
 
     def _thread(self):
@@ -336,6 +331,17 @@ class Server(Base):
         self.connected = self._handle_events()
 
     def choose_subprotocol(self, request):
+        """Choose a subprotocol to use for the WebSocket connection.
+
+        The default implementation selects the first protocol request by the
+        client that is accepted by the server. Subclasses can override this
+        method to implement a different subprotocol negotiation algorithm.
+
+        :param request: A ``Request`` object.
+
+        The method should return the subprotocol to use, or ``None`` if no
+        subprotocol is chosen.
+        """
         for subprotocol in request.subprotocols:
             if subprotocol in self.subprotocols:
                 return subprotocol

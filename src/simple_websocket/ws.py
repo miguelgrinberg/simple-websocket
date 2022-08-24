@@ -184,6 +184,7 @@ class Base:
                         out_data += self.ws.send(event.response())
                     self.close_reason = event.code
                     self.close_message = event.reason
+                    self.connected = False
                     self.event.set()
                     keep_going = False
                 elif isinstance(event, Ping):

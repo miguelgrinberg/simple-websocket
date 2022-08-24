@@ -411,9 +411,15 @@ class Client(Base):
                                         subprotocols=self.subprotocols or []))
         self.sock.send(out_data)
 
-        in_data = self.sock.recv(self.receive_bytes)
-        self.ws.receive_data(in_data)
-        event = next(self.ws.events())
+        while True:
+            in_data = self.sock.recv(self.receive_bytes)
+            self.ws.receive_data(in_data)
+            try:
+                event = next(self.ws.events())
+            except StopIteration:  # pragma: no cover
+                pass
+            else:  # pragma: no cover
+                break
         if isinstance(event, RejectConnection):  # pragma: no cover
             raise ConnectionError(event.status_code)
         elif not isinstance(event, AcceptConnection):  # pragma: no cover

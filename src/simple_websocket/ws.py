@@ -100,7 +100,7 @@ class Base:
         """Receive data over the WebSocket connection.
 
         :param timeout: Amount of time to wait for the data, in seconds. Set
-                        to ``None`` (the default) to wait undefinitely. Set
+                        to ``None`` (the default) to wait indefinitely. Set
                         to 0 to read without blocking.
 
         The data received is returned, as ``bytes`` or ``str``, depending on
@@ -118,7 +118,7 @@ class Base:
         """Close the WebSocket connection.
 
         :param reason: A numeric status code indicating the reason of the
-                       closure, as defined by the WebSocket specifiation. The
+                       closure, as defined by the WebSocket specification. The
                        default is 1000 (normal closure).
         :param message: A text message to be sent to the other side.
         """
@@ -163,11 +163,15 @@ class Base:
                 if len(in_data) == 0:
                     raise OSError()
             except (OSError, ConnectionResetError):  # pragma: no cover
+                self.close(reason=CloseReason.GOING_AWAY,
+                           message='Connection Error')
                 self.connected = False
                 self.event.set()
                 break
             self.ws.receive_data(in_data)
             self.connected = self._handle_events()
+            if not self.connected:
+                self.sock.close()
 
     def _handle_events(self):
         keep_going = True
@@ -347,6 +351,10 @@ class Server(Base):
             if subprotocol in self.subprotocols:
                 return subprotocol
         return None
+
+    def close(self, reason=None, message=None):
+        super().close(reason=reason, message=message)
+        self.sock.close()
 
 
 class Client(Base):

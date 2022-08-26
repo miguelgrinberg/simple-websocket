@@ -63,11 +63,9 @@ class Base:
             import threading
             event_class = threading.Event
         if selector_class is None:
-            import selectors
             selector_class = selectors.DefaultSelector
-
+        self.selector_class = selector_class
         self.event = event_class()
-        self.selector = selector_class()
 
         self.ws = WSConnection(connection_type)
         self.handshake()
@@ -100,7 +98,7 @@ class Base:
         """Receive data over the WebSocket connection.
 
         :param timeout: Amount of time to wait for the data, in seconds. Set
-                        to ``None`` (the default) to wait undefinitely. Set
+                        to ``None`` (the default) to wait indefinitely. Set
                         to 0 to read without blocking.
 
         The data received is returned, as ``bytes`` or ``str``, depending on
@@ -118,7 +116,7 @@ class Base:
         """Close the WebSocket connection.
 
         :param reason: A numeric status code indicating the reason of the
-                       closure, as defined by the WebSocket specifiation. The
+                       closure, as defined by the WebSocket specification. The
                        default is 1000 (normal closure).
         :param message: A text message to be sent to the other side.
         """
@@ -142,7 +140,7 @@ class Base:
         sel = None
         if self.ping_interval:
             next_ping = time() + self.ping_interval
-            sel = self.selector
+            sel = self.selector_class()
             sel.register(self.sock, selectors.EVENT_READ, True)
 
         while self.connected:
@@ -166,8 +164,11 @@ class Base:
                 self.connected = False
                 self.event.set()
                 break
+
             self.ws.receive_data(in_data)
             self.connected = self._handle_events()
+        sel.close() if sel else None
+        self.sock.close()
 
     def _handle_events(self):
         keep_going = True

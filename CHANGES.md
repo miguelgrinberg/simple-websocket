@@ -1,5 +1,12 @@
 # simple-websocket change log
 
+**Release 0.8.1** - 2022-09-11
+
+- Correct handling of an empty subprotocol list in server [#22](https://github.com/miguelgrinberg/simple-websocket/issues/22) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/cf336163fbc65281163fac0c253c4281b760c169))
+- Handshake robustness with slow clients such as microcontrollers ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/271f8fc3ee466a0d0bd5a71543b2e50a632891dd))
+- Prevent race condition on client close [#18](https://github.com/miguelgrinberg/simple-websocket/issues/18) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/e17449153b472a801df4bf2246f06a8486d91c9d))
+- Improved documentation for subprotocol negotiation ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/c74785482ff266c552692a330c3c71d2b9d1f438))
+
 **Release 0.8.0** - 2022-08-08
 
 - Support for subprotocol negotiation [#17](https://github.com/miguelgrinberg/simple-websocket/issues/17) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/04baf871e05e99d80c8905e9e9b0ff4be322e71f))

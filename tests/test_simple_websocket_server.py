@@ -230,6 +230,13 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
 
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
+        }, client_subprotocols=['foo', 'bar'], server_subprotocols='bar')
+        while server.connected:
+            time.sleep(0.01)
+        assert server.subprotocol == 'bar'
+
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
         }, client_subprotocols=['foo', 'bar'], server_subprotocols=['bar'])
         while server.connected:
             time.sleep(0.01)
@@ -245,6 +252,13 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         server = self.get_server(mock_wsconn, {
             'werkzeug.socket': mock_socket,
         }, client_subprotocols=['foo'], server_subprotocols=['bar', 'baz'])
+        while server.connected:
+            time.sleep(0.01)
+        assert server.subprotocol is None
+
+        server = self.get_server(mock_wsconn, {
+            'werkzeug.socket': mock_socket,
+        }, client_subprotocols=['foo'], server_subprotocols=None)
         while server.connected:
             time.sleep(0.01)
         assert server.subprotocol is None

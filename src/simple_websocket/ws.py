@@ -288,7 +288,9 @@ class Server(Base):
                  ping_interval=None, max_message_size=None, thread_class=None,
                  event_class=None, selector_class=None):
         self.environ = environ
-        self.subprotocols = subprotocols
+        self.subprotocols = subprotocols or []
+        if isinstance(self.subprotocols, str):
+            self.subprotocols = [self.subprotocols]
         self.mode = 'unknown'
         sock = None
         if 'werkzeug.socket' in environ:
@@ -334,7 +336,7 @@ class Server(Base):
     def choose_subprotocol(self, request):
         """Choose a subprotocol to use for the WebSocket connection.
 
-        The default implementation selects the first protocol request by the
+        The default implementation selects the first protocol requested by the
         client that is accepted by the server. Subclasses can override this
         method to implement a different subprotocol negotiation algorithm.
 
@@ -408,7 +410,7 @@ class Client(Base):
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
-                                        subprotocols=self.subprotocols or []))
+                                        subprotocols=self.subprotocols))
         self.sock.send(out_data)
 
         while True:

@@ -163,11 +163,12 @@ class Base:
                 if len(in_data) == 0:
                     raise OSError()
             except (OSError, ConnectionResetError):  # pragma: no cover
-                self.close(reason=CloseReason.GOING_AWAY,
-                           message='Connection Error')
+                # socket connection lost, clean up our side
+                self.sock.close()
                 self.connected = False
                 self.event.set()
                 break
+
             self.ws.receive_data(in_data)
             self.connected = self._handle_events()
             if not self.connected:
@@ -351,10 +352,6 @@ class Server(Base):
             if subprotocol in self.subprotocols:
                 return subprotocol
         return None
-
-    def close(self, reason=None, message=None):
-        super().close(reason=reason, message=message)
-        self.sock.close()
 
 
 class Client(Base):

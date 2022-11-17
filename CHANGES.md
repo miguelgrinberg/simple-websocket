@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.9.0** - 2022-11-17
+
+- Properly clean up closed connections [#19](https://github.com/miguelgrinberg/simple-websocket/issues/19) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/9bda31010405045125b304afd633b9a9a5171335)) (thanks **Carlos Carvalho**!)
+
 **Release 0.8.1** - 2022-09-11
 
 - Correct handling of an empty subprotocol list in server [#22](https://github.com/miguelgrinberg/simple-websocket/issues/22) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/cf336163fbc65281163fac0c253c4281b760c169))

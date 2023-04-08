@@ -360,6 +360,10 @@ class Client(Base):
     :param subprotocols: The name of the subprotocol to use, or a list of
                          subprotocol names in order of preference. Set to
                          ``None`` (the default) to not use a subprotocol.
+    :param headers: A dictionary or list of tuples with additional HTTP headers
+                    to send with the connection request. Note that custom
+                    headers are not supported by the WebSocket protocol, so the
+                    use of this parameter is not recommended.
     :param receive_bytes: The size of the receive buffer, in bytes. The
                           default is 4096.
     :param ping_interval: Send ping packets to the server at the requested
@@ -382,9 +386,10 @@ class Client(Base):
                         objects. The default is the `threading.Event`` class
                         from the Python standard library.
     """
-    def __init__(self, url, subprotocols=None, receive_bytes=4096,
-                 ping_interval=None, max_message_size=None, ssl_context=None,
-                 thread_class=None, event_class=None, selector_class=None):
+    def __init__(self, url, subprotocols=None, headers=None,
+                 receive_bytes=4096, ping_interval=None, max_message_size=None,
+                 ssl_context=None, thread_class=None, event_class=None,
+                 selector_class=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -395,6 +400,13 @@ class Client(Base):
         self.subprotocols = subprotocols or []
         if isinstance(self.subprotocols, str):
             self.subprotocols = [self.subprotocols]
+
+        self.extra_headeers = []
+        if isinstance(headers, dict):
+            for key, value in headers.items():
+                self.extra_headeers.append((key, value))
+        elif isinstance(headers, list):
+            self.extra_headeers = headers
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if is_secure:  # pragma: no cover
@@ -411,7 +423,8 @@ class Client(Base):
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
-                                        subprotocols=self.subprotocols))
+                                        subprotocols=self.subprotocols,
+                                        extra_headers=self.extra_headeers))
         self.sock.send(out_data)
 
         while True:

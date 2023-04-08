@@ -9,12 +9,14 @@ import simple_websocket
 
 
 class SimpleWebSocketClientTestCase(unittest.TestCase):
-    def get_client(self, mock_wsconn, url, events=[], subprotocols=None):
+    def get_client(self, mock_wsconn, url, events=[], subprotocols=None,
+                   headers=None):
         mock_wsconn().events.side_effect = \
             [iter(ev) for ev in
              [[AcceptConnection()]] + events + [[CloseConnection(1000)]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
-        return simple_websocket.Client(url, subprotocols=subprotocols)
+        return simple_websocket.Client(url, subprotocols=subprotocols,
+                                       headers=headers)
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
@@ -54,6 +56,22 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
         client.sock.send.assert_called_with(
             b"Request(host='example.com', target='/ws?a=1', extensions=[], "
             b"extra_headers=[], subprotocols=['foo', 'bar'])")
+
+    @mock.patch('simple_websocket.ws.socket.socket')
+    @mock.patch('simple_websocket.ws.WSConnection')
+    def test_make_client_headers(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
+        client = self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
+                                 headers={'Foo': 'Bar'})
+        client.sock.send.assert_called_with(
+            b"Request(host='example.com', target='/ws?a=1', extensions=[], "
+            b"extra_headers=[('Foo', 'Bar')], subprotocols=[])")
+        client = self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
+                                 headers=[('Foo', 'Bar'), ('Foo', 'Baz')])
+        client.sock.send.assert_called_with(
+            b"Request(host='example.com', target='/ws?a=1', extensions=[], "
+            b"extra_headers=[('Foo', 'Bar'), ('Foo', 'Baz')], "
+            b"subprotocols=[])")
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')

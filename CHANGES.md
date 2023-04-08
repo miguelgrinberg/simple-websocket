@@ -1,5 +1,9 @@
 # simple-websocket change log
 
+**Release 0.10.0** - 2023-04-08
+
+- Support custom headers in the client ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/4f5c653378e77026604b4b25b8a5373da48b5f74))
+
 **Release 0.9.0** - 2022-11-17
 
 - Properly clean up closed connections [#19](https://github.com/miguelgrinberg/simple-websocket/issues/19) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/9bda31010405045125b304afd633b9a9a5171335)) (thanks **Carlos Carvalho**!)

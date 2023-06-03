@@ -313,7 +313,7 @@ class Server(Base):
             if not hasattr(wsgi_input, 'raw') and hasattr(wsgi_input, 'rfile'):
                 wsgi_input = wsgi_input.rfile
             if hasattr(wsgi_input, 'raw'):
-                sock = wsgi_input.raw._sock
+                sock = wsgi_input.raw._sock.dup()
                 self.mode = 'gevent'
         if sock is None:
             raise RuntimeError('Cannot obtain socket from WSGI environment.')

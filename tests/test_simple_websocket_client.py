@@ -66,6 +66,11 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
         client.sock.send.assert_called_with(
             b"Request(host='example.com', target='/ws?a=1', extensions=[], "
             b"extra_headers=[('Foo', 'Bar')], subprotocols=[])")
+
+    @mock.patch('simple_websocket.ws.socket.socket')
+    @mock.patch('simple_websocket.ws.WSConnection')
+    def test_make_client_headers2(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
                                  headers=[('Foo', 'Bar'), ('Foo', 'Baz')])
         client.sock.send.assert_called_with(

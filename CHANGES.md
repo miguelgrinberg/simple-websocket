@@ -1,5 +1,10 @@
 # simple-websocket change log
 
+**Release 0.10.1** - 2023-06-04
+
+- Duplicate the gevent socket to avoid using it in multiple greenlets [#24](https://github.com/miguelgrinberg/simple-websocket/issues/24) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/ebc12b1a390ab36d8dcd020b45410da282fa8d60))
+- Add Python 3.11 to builds ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/df5c92a8d8b48e3482be5ad7af2628b17e6d6d07))
+
 **Release 0.10.0** - 2023-04-08
 
 - Support custom headers in the client ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/4f5c653378e77026604b4b25b8a5373da48b5f74))

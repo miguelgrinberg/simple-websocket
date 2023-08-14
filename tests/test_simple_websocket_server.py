@@ -90,6 +90,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
         mock_socket.send.assert_called_with(
             b"TextMessage(data='hello', frame_finished=True, "
             b"message_finished=True)")
+        server.connected = True
         server.send(b'hello')
         mock_socket.send.assert_called_with(
             b"Message(data=b'hello', frame_finished=True, "

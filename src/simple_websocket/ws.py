@@ -392,8 +392,7 @@ class Client(Base):
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
-                 ssl_context=None, thread_class=None, event_class=None,
-                 selector_class=None):
+                 ssl_context=None, thread_class=None, event_class=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname

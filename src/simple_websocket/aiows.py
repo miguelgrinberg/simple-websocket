@@ -1,5 +1,4 @@
-import selectors
-import socket
+import asyncio
 import ssl
 from time import time
 from urllib.parse import urlsplit
@@ -22,14 +21,13 @@ from wsproto.utilities import LocalProtocolError
 from .errors import ConnectionError, ConnectionClosed
 
 
-class Base:
-    def __init__(self, sock=None, connection_type=None, receive_bytes=4096,
-                 ping_interval=None, max_message_size=None,
-                 thread_class=None, event_class=None, selector_class=None):
+class AioBase:
+    def __init__(self, connection_type=None, receive_bytes=4096,
+                 ping_interval=None, max_message_size=None):
         #: The name of the subprotocol chosen for the WebSocket connection.
         self.subprotocol = None
 
-        self.sock = sock
+        self.connection_type = connection_type
         self.receive_bytes = receive_bytes
         self.ping_interval = ping_interval
         self.max_message_size = max_message_size
@@ -42,32 +40,24 @@ class Base:
         self.close_reason = CloseReason.NO_STATUS_RCVD
         self.close_message = None
 
-        if thread_class is None:
-            import threading
-            thread_class = threading.Thread
-        if event_class is None:  # pragma: no branch
-            import threading
-            event_class = threading.Event
-        if selector_class is None:
-            selector_class = selectors.DefaultSelector
-        self.selector_class = selector_class
-        self.event = event_class()
+        self.sock = None
+        self.event = asyncio.Event()
+        self.ws = None
+        self.task = None
 
-        self.ws = WSConnection(connection_type)
-        self.handshake()
+    async def connect(self):
+        self.ws = WSConnection(self.connection_type)
+        await self.handshake()
 
         if not self.connected:  # pragma: no cover
             raise ConnectionError()
-        self.thread = thread_class(target=self._thread)
-        self.thread.name = self.thread.name.replace(
-            '(_thread)', '(simple_websocket.Base._thread)')
-        self.thread.start()
+        self.task = asyncio.create_task(self._task())
 
-    def handshake(self):  # pragma: no cover
+    async def handshake(self):  # pragma: no cover
         # to be implemented by subclasses
         pass
 
-    def send(self, data):
+    async def send(self, data):
         """Send data over the WebSocket connection.
 
         :param data: The data to send. If ``data`` is of type ``bytes``, then
@@ -80,9 +70,9 @@ class Base:
             out_data = self.ws.send(Message(data=data))
         else:
             out_data = self.ws.send(TextMessage(data=str(data)))
-        self.sock.send(out_data)
+        self.sock.write(out_data)
 
-    def receive(self, timeout=None):
+    async def receive(self, timeout=None):
         """Receive data over the WebSocket connection.
 
         :param timeout: Amount of time to wait for the data, in seconds. Set
@@ -93,17 +83,16 @@ class Base:
         the type of the incoming message.
         """
         while self.connected and not self.input_buffer:
-            if not self.event.wait(timeout=timeout):
+            try:
+                await asyncio.wait_for(self.event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
                 return None
             self.event.clear()
-        try:
-            return self.input_buffer.pop(0)
-        except IndexError:
-            pass
         if not self.connected:  # pragma: no cover
             raise ConnectionClosed(self.close_reason, self.close_message)
+        return self.input_buffer.pop(0)
 
-    def close(self, reason=None, message=None):
+    async def close(self, reason=None, message=None):
         """Close the WebSocket connection.
 
         :param reason: A numeric status code indicating the reason of the
@@ -116,7 +105,7 @@ class Base:
         out_data = self.ws.send(CloseConnection(
             reason or CloseReason.NORMAL_CLOSURE, message))
         try:
-            self.sock.send(out_data)
+            self.sock.write(out_data)
         except BrokenPipeError:  # pragma: no cover
             pass
         self.connected = False
@@ -127,40 +116,50 @@ class Base:
         # the server-side of the WebSocket protocol.
         return None
 
-    def _thread(self):
-        sel = None
+    async def _task(self):
+        next_ping = None
         if self.ping_interval:
             next_ping = time() + self.ping_interval
-            sel = self.selector_class()
-            sel.register(self.sock, selectors.EVENT_READ, True)
 
         while self.connected:
             try:
-                if sel:
+                in_data = b''
+                if next_ping:
                     now = time()
-                    if next_ping <= now or not sel.select(next_ping - now):
+                    timed_out = True
+                    if next_ping > now:
+                        timed_out = False
+                        try:
+                            in_data = await asyncio.wait_for(
+                                self.sock._reader.read(self.receive_bytes),
+                                timeout=next_ping - now)
+                        except asyncio.TimeoutError:
+                            timed_out = True
+                    if timed_out:
                         # we reached the timeout, we have to send a ping
                         if not self.pong_received:
-                            self.close(reason=CloseReason.POLICY_VIOLATION,
-                                       message='Ping/Pong timeout')
+                            await self.close(
+                                reason=CloseReason.POLICY_VIOLATION,
+                                message='Ping/Pong timeout')
                             break
                         self.pong_received = False
-                        self.sock.send(self.ws.send(Ping()))
+                        self.sock.write(self.ws.send(Ping()))
                         next_ping = max(now, next_ping) + self.ping_interval
                         continue
-                in_data = self.sock.recv(self.receive_bytes)
+                else:
+                    in_data = await self.sock._reader.read(self.receive_bytes)
                 if len(in_data) == 0:
                     raise OSError()
-                self.ws.receive_data(in_data)
-                self.connected = self._handle_events()
             except (OSError, ConnectionResetError):  # pragma: no cover
                 self.connected = False
                 self.event.set()
                 break
-        sel.close() if sel else None
+
+            self.ws.receive_data(in_data)
+            self.connected = await self._handle_events()
         self.sock.close()
 
-    def _handle_events(self):
+    async def _handle_events(self):
         keep_going = True
         out_data = b''
         for event in self.ws.events():
@@ -236,21 +235,22 @@ class Base:
                 self.event.set()
                 keep_going = False
         if out_data:
-            self.sock.send(out_data)
+            self.sock.write(out_data)
         return keep_going
 
 
-class Server(Base):
+class AioServer(AioBase):
     """This class implements a WebSocket server.
 
-    :param environ: A WSGI ``environ`` dictionary with the request details.
-                    Among other things, this class expects to find the
-                    low-level network socket for the connection somewhere in
-                    this dictionary. Since the WSGI specification does not
-                    cover where or how to store this socket, each web server
-                    does this in its own different way. Werkzeug, Gunicorn,
-                    Eventlet and Gevent are the only web servers that are
-                    currently supported.
+    :param request: An object with the request details. This class expects to
+                    find the low-level network socket for the connection in
+                    this object. This argument can be the request object from
+                    aiohttp, a tuple with the ``scope``, ``receive`` and
+                    ``send`` input arguments from an ASGI WebSocket connection
+                    request, or a request handler object from Tornado. If none
+                    of these are available, the caller can pass a tuple with
+                    a ``StreamWriter`` instance for the socket to use and a
+                    dictionary with request headers.
     :param subprotocols: A list of supported subprotocols, or ``None`` (the
                          default) to disable subprotocol negotiation.
     :param receive_bytes: The size of the receive buffer, in bytes. The
@@ -264,69 +264,41 @@ class Server(Base):
                           seconds.
     :param max_message_size: The maximum size allowed for a message, in bytes,
                              or ``None`` for no limit. The default is ``None``.
-    :param thread_class: The ``Thread`` class to use when creating background
-                         threads. The default is the ``threading.Thread``
-                         class from the Python standard library.
-    :param event_class: The ``Event`` class to use when creating event
-                        objects. The default is the `threading.Event`` class
-                        from the Python standard library.
-    :param selector_class: The ``Selector`` class to use when creating
-                           selectors. The default is the
-                           ``selectors.DefaultSelector`` class from the Python
-                           standard library.
     """
-    def __init__(self, environ, subprotocols=None, receive_bytes=4096,
-                 ping_interval=None, max_message_size=None, thread_class=None,
-                 event_class=None, selector_class=None):
-        self.environ = environ
+    def __init__(self, request, subprotocols=None, receive_bytes=4096,
+                 ping_interval=None, max_message_size=None):
+        super().__init__(connection_type=ConnectionType.SERVER,
+                         receive_bytes=receive_bytes,
+                         ping_interval=ping_interval,
+                         max_message_size=max_message_size)
+        self.request = request
+        self.headers = {}
         self.subprotocols = subprotocols or []
         if isinstance(self.subprotocols, str):
             self.subprotocols = [self.subprotocols]
         self.mode = 'unknown'
-        sock = None
-        if 'werkzeug.socket' in environ:
-            # extract socket from Werkzeug's WSGI environment
-            sock = environ.get('werkzeug.socket')
-            self.mode = 'werkzeug'
-        elif 'gunicorn.socket' in environ:
-            # extract socket from Gunicorn WSGI environment
-            sock = environ.get('gunicorn.socket')
-            self.mode = 'gunicorn'
-        elif 'eventlet.input' in environ:  # pragma: no cover
-            # extract socket from Eventlet's WSGI environment
-            sock = environ.get('eventlet.input').get_socket()
-            self.mode = 'eventlet'
-        elif environ.get('SERVER_SOFTWARE', '').startswith(
-                'gevent'):  # pragma: no cover
-            # extract socket from Gevent's WSGI environment
-            wsgi_input = environ['wsgi.input']
-            if not hasattr(wsgi_input, 'raw') and hasattr(wsgi_input, 'rfile'):
-                wsgi_input = wsgi_input.rfile
-            if hasattr(wsgi_input, 'raw'):
-                sock = wsgi_input.raw._sock
-                try:
-                    sock = sock.dup()
-                except NotImplementedError:
-                    pass
-                self.mode = 'gevent'
-        if sock is None:
-            raise RuntimeError('Cannot obtain socket from WSGI environment.')
-        super().__init__(sock, connection_type=ConnectionType.SERVER,
-                         receive_bytes=receive_bytes,
-                         ping_interval=ping_interval,
-                         max_message_size=max_message_size,
-                         thread_class=thread_class, event_class=event_class,
-                         selector_class=selector_class)
 
-    def handshake(self):
+    async def connect(self):
+        if isinstance(self.request, tuple):
+            # custom integration
+            self.sock = self.request[0]
+            self.headers = self.request[1]
+            self.mode = 'custom'
+        else:
+            # aiohttp
+            _, self.sock = await asyncio.open_connection(
+                sock=self.request.transport.get_extra_info('socket').dup())
+            self.headers = self.request.headers
+            self.mode = 'aiohttp'
+        await super().connect()
+
+    async def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'
-        for key, value in self.environ.items():
-            if key.startswith('HTTP_'):
-                header = '-'.join([p.capitalize() for p in key[5:].split('_')])
-                in_data += f'{header}: {value}\r\n'.encode()
+        for header, value in self.headers.items():
+            in_data += f'{header}: {value}\r\n'.encode()
         in_data += b'\r\n'
         self.ws.receive_data(in_data)
-        self.connected = self._handle_events()
+        self.connected = await self._handle_events()
 
     def choose_subprotocol(self, request):
         """Choose a subprotocol to use for the WebSocket connection.
@@ -346,7 +318,7 @@ class Server(Base):
         return None
 
 
-class Client(Base):
+class AioClient(AioBase):
     """This class implements a WebSocket client.
 
     :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
@@ -373,20 +345,20 @@ class Client(Base):
                              or ``None`` for no limit. The default is ``None``.
     :param ssl_context: An ``SSLContext`` instance, if a default SSL context
                         isn't sufficient.
-    :param thread_class: The ``Thread`` class to use when creating background
-                         threads. The default is the ``threading.Thread``
-                         class from the Python standard library.
-    :param event_class: The ``Event`` class to use when creating event
-                        objects. The default is the `threading.Event`` class
-                        from the Python standard library.
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
-                 ssl_context=None, thread_class=None, event_class=None):
+                 ssl_context=None):
+        super().__init__(connection_type=ConnectionType.CLIENT,
+                         receive_bytes=receive_bytes,
+                         ping_interval=ping_interval,
+                         max_message_size=max_message_size)
+        self.url = url
+        self.ssl_context = ssl_context
         parsed_url = urlsplit(url)
-        is_secure = parsed_url.scheme in ['https', 'wss']
+        self.is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
-        self.port = parsed_url.port or (443 if is_secure else 80)
+        self.port = parsed_url.port or (443 if self.is_secure else 80)
         self.path = parsed_url.path
         if parsed_url.query:
             self.path += '?' + parsed_url.query
@@ -401,27 +373,23 @@ class Client(Base):
         elif isinstance(headers, list):
             self.extra_headeers = headers
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if is_secure:  # pragma: no cover
-            if ssl_context is None:
-                ssl_context = ssl.create_default_context(
+    async def connect(self):
+        if self.is_secure:  # pragma: no cover
+            if self.ssl_context is None:
+                self.ssl_context = ssl.create_default_context(
                     purpose=ssl.Purpose.SERVER_AUTH)
-            sock = ssl_context.wrap_socket(sock, server_hostname=self.host)
-        sock.connect((self.host, self.port))
-        super().__init__(sock, connection_type=ConnectionType.CLIENT,
-                         receive_bytes=receive_bytes,
-                         ping_interval=ping_interval,
-                         max_message_size=max_message_size,
-                         thread_class=thread_class, event_class=event_class)
+        _, self.sock = await asyncio.open_connection(self.host, self.port,
+                                                     ssl=self.ssl_context)
+        await super().connect()
 
-    def handshake(self):
+    async def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
                                         subprotocols=self.subprotocols,
                                         extra_headers=self.extra_headeers))
-        self.sock.send(out_data)
+        self.sock.write(out_data)
 
         while True:
-            in_data = self.sock.recv(self.receive_bytes)
+            in_data = await self.sock._reader.read(self.receive_bytes)
             self.ws.receive_data(in_data)
             try:
                 event = next(self.ws.events())
@@ -436,6 +404,6 @@ class Client(Base):
         self.subprotocol = event.subprotocol
         self.connected = True
 
-    def close(self, reason=None, message=None):
-        super().close(reason=reason, message=message)
+    async def close(self, reason=None, message=None):
+        await super().close(reason=reason, message=message)
         self.sock.close()

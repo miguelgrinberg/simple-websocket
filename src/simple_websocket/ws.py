@@ -73,6 +73,8 @@ class Base:
         if not self.connected:  # pragma: no cover
             raise ConnectionError()
         self.thread = thread_class(target=self._thread)
+        self.thread.name = self.thread.name.replace(
+            '(_thread)', '(simple_websocket.Base._thread)')
         self.thread.start()
 
     def handshake(self):  # pragma: no cover
@@ -160,13 +162,12 @@ class Base:
                 in_data = self.sock.recv(self.receive_bytes)
                 if len(in_data) == 0:
                     raise OSError()
+                self.ws.receive_data(in_data)
+                self.connected = self._handle_events()
             except (OSError, ConnectionResetError):  # pragma: no cover
                 self.connected = False
                 self.event.set()
                 break
-
-            self.ws.receive_data(in_data)
-            self.connected = self._handle_events()
         sel.close() if sel else None
         self.sock.close()
 

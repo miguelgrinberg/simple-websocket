@@ -110,9 +110,12 @@ class Base:
             if not self.event.wait(timeout=timeout):
                 return None
             self.event.clear()
+        try:
+            return self.input_buffer.pop(0)
+        except IndexError:
+            pass
         if not self.connected:  # pragma: no cover
             raise ConnectionClosed(self.close_reason, self.close_message)
-        return self.input_buffer.pop(0)
 
     def close(self, reason=None, message=None):
         """Close the WebSocket connection.

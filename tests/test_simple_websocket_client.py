@@ -115,6 +115,19 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')
+    def test_receive_after_close(self, mock_wsconn, mock_socket):
+        mock_socket.return_value.recv.return_value = b'x'
+        client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[
+            [TextMessage('hello')],
+        ])
+        while client.connected:
+            time.sleep(0.01)
+        assert client.receive() == 'hello'
+        with pytest.raises(simple_websocket.ConnectionClosed):
+            client.receive()
+
+    @mock.patch('simple_websocket.ws.socket.socket')
+    @mock.patch('simple_websocket.ws.WSConnection')
     def test_receive_ping(self, mock_wsconn, mock_socket):
         mock_socket.return_value.recv.return_value = b'x'
         client = self.get_client(mock_wsconn, 'ws://example.com/ws', events=[

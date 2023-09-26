@@ -20,6 +20,8 @@ from wsproto.frame_protocol import CloseReason
 from wsproto.utilities import LocalProtocolError
 from .errors import ConnectionError, ConnectionClosed
 
+from .deasync import DeAsync
+
 
 class AioBase:
     def __init__(self, connection_type=None, receive_bytes=4096,
@@ -40,7 +42,8 @@ class AioBase:
         self.close_reason = CloseReason.NO_STATUS_RCVD
         self.close_message = None
 
-        self.sock = None
+        self.rsock = None
+        self.wsock = None
         self.event = asyncio.Event()
         self.ws = None
         self.task = None
@@ -70,7 +73,7 @@ class AioBase:
             out_data = self.ws.send(Message(data=data))
         else:
             out_data = self.ws.send(TextMessage(data=str(data)))
-        self.sock.write(out_data)
+        self.wsock.write(out_data)
 
     async def receive(self, timeout=None):
         """Receive data over the WebSocket connection.
@@ -105,7 +108,7 @@ class AioBase:
         out_data = self.ws.send(CloseConnection(
             reason or CloseReason.NORMAL_CLOSURE, message))
         try:
-            self.sock.write(out_data)
+            self.wsock.write(out_data)
         except BrokenPipeError:  # pragma: no cover
             pass
         self.connected = False
@@ -131,7 +134,7 @@ class AioBase:
                         timed_out = False
                         try:
                             in_data = await asyncio.wait_for(
-                                self.sock._reader.read(self.receive_bytes),
+                                self.rsock.read(self.receive_bytes),
                                 timeout=next_ping - now)
                         except asyncio.TimeoutError:
                             timed_out = True
@@ -143,11 +146,11 @@ class AioBase:
                                 message='Ping/Pong timeout')
                             break
                         self.pong_received = False
-                        self.sock.write(self.ws.send(Ping()))
+                        self.wsock.write(self.ws.send(Ping()))
                         next_ping = max(now, next_ping) + self.ping_interval
                         continue
                 else:
-                    in_data = await self.sock._reader.read(self.receive_bytes)
+                    in_data = await self.rsock.read(self.receive_bytes)
                 if len(in_data) == 0:
                     raise OSError()
             except (OSError, ConnectionResetError):  # pragma: no cover
@@ -157,7 +160,7 @@ class AioBase:
 
             self.ws.receive_data(in_data)
             self.connected = await self._handle_events()
-        self.sock.close()
+        self.wsock.close()
 
     async def _handle_events(self):
         keep_going = True
@@ -235,7 +238,7 @@ class AioBase:
                 self.event.set()
                 keep_going = False
         if out_data:
-            self.sock.write(out_data)
+            self.wsock.write(out_data)
         return keep_going
 
 
@@ -280,16 +283,16 @@ class AioServer(AioBase):
 
     async def connect(self):
         if isinstance(self.request, tuple):
-            # custom integration
-            self.sock = self.request[0]
+            # custom integration, request is a tuple with (socket, headers)
+            sock = self.request[0]
             self.headers = self.request[1]
             self.mode = 'custom'
         else:
-            # aiohttp
-            _, self.sock = await asyncio.open_connection(
-                sock=self.request.transport.get_extra_info('socket').dup())
+            # default implementation, request is an aiohttp request object
+            sock = self.request.transport.get_extra_info('socket').dup()
             self.headers = self.request.headers
             self.mode = 'aiohttp'
+        self.rsock, self.wsock = await asyncio.open_connection(sock=sock)
         await super().connect()
 
     async def handshake(self):
@@ -378,18 +381,18 @@ class AioClient(AioBase):
             if self.ssl_context is None:
                 self.ssl_context = ssl.create_default_context(
                     purpose=ssl.Purpose.SERVER_AUTH)
-        _, self.sock = await asyncio.open_connection(self.host, self.port,
-                                                     ssl=self.ssl_context)
+        self.rsock, self.wsock = await asyncio.open_connection(
+            self.host, self.port, ssl=self.ssl_context)
         await super().connect()
 
     async def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
                                         subprotocols=self.subprotocols,
                                         extra_headers=self.extra_headeers))
-        self.sock.write(out_data)
+        self.wsock.write(out_data)
 
         while True:
-            in_data = await self.sock._reader.read(self.receive_bytes)
+            in_data = await self.rsock.read(self.receive_bytes)
             self.ws.receive_data(in_data)
             try:
                 event = next(self.ws.events())
@@ -406,4 +409,57 @@ class AioClient(AioBase):
 
     async def close(self, reason=None, message=None):
         await super().close(reason=reason, message=message)
-        self.sock.close()
+        self.wsock.close()
+
+
+class Server(DeAsync, async_class=AioServer):
+    connect = DeAsync.method(AioServer.connect)
+    close = DeAsync.method(AioServer.close)
+    send = DeAsync.method(AioServer.send)
+    receive = DeAsync.method(AioServer.receive)
+
+    def __init__(self, environ, subprotocols=None, receive_bytes=4096,
+                 ping_interval=None, max_message_size=None):
+        self.environ = environ
+        self.mode = 'unknown'
+        sock = None
+        if 'werkzeug.socket' in environ:
+            # extract socket from Werkzeug's WSGI environment
+            sock = environ.get('werkzeug.socket')
+            self.mode = 'werkzeug'
+        elif 'gunicorn.socket' in environ:
+            # extract socket from Gunicorn WSGI environment
+            sock = environ.get('gunicorn.socket')
+            self.mode = 'gunicorn'
+        elif 'eventlet.input' in environ:  # pragma: no cover
+            # extract socket from Eventlet's WSGI environment
+            sock = environ.get('eventlet.input').get_socket()
+            self.mode = 'eventlet'
+        elif environ.get('SERVER_SOFTWARE', '').startswith(
+                'gevent'):  # pragma: no cover
+            # extract socket from Gevent's WSGI environment
+            wsgi_input = environ['wsgi.input']
+            if not hasattr(wsgi_input, 'raw') and hasattr(wsgi_input, 'rfile'):
+                wsgi_input = wsgi_input.rfile
+            if hasattr(wsgi_input, 'raw'):
+                sock = wsgi_input.raw._sock
+                try:
+                    sock = sock.dup()
+                except NotImplementedError:
+                    pass
+                self.mode = 'gevent'
+        if sock is None:
+            raise RuntimeError('Cannot obtain socket from WSGI environment.')
+        headers = {}
+        for key, value in environ.items():
+            if key.startswith('HTTP_'):
+                headers[key[5:].replace('_', '-').title()] = value
+        super().__init__((sock, headers))
+
+
+class Client(DeAsync, async_class=AioClient):
+    connected = DeAsync.property('connected')
+    connect = DeAsync.method(AioClient.connect)
+    close = DeAsync.method(AioClient.close)
+    send = DeAsync.method(AioClient.send)
+    receive = DeAsync.method(AioClient.receive)

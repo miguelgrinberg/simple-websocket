@@ -243,37 +243,9 @@ class Base:
 class Server(Base):
     """This class implements a WebSocket server.
 
-    :param environ: A WSGI ``environ`` dictionary with the request details.
-                    Among other things, this class expects to find the
-                    low-level network socket for the connection somewhere in
-                    this dictionary. Since the WSGI specification does not
-                    cover where or how to store this socket, each web server
-                    does this in its own different way. Werkzeug, Gunicorn,
-                    Eventlet and Gevent are the only web servers that are
-                    currently supported.
-    :param subprotocols: A list of supported subprotocols, or ``None`` (the
-                         default) to disable subprotocol negotiation.
-    :param receive_bytes: The size of the receive buffer, in bytes. The
-                          default is 4096.
-    :param ping_interval: Send ping packets to clients at the requested
-                          interval in seconds. Set to ``None`` (the default) to
-                          disable ping/pong logic. Enable to prevent
-                          disconnections when the line is idle for a certain
-                          amount of time, or to detect unresponsive clients and
-                          disconnect them. A recommended interval is 25
-                          seconds.
-    :param max_message_size: The maximum size allowed for a message, in bytes,
-                             or ``None`` for no limit. The default is ``None``.
-    :param thread_class: The ``Thread`` class to use when creating background
-                         threads. The default is the ``threading.Thread``
-                         class from the Python standard library.
-    :param event_class: The ``Event`` class to use when creating event
-                        objects. The default is the `threading.Event`` class
-                        from the Python standard library.
-    :param selector_class: The ``Selector`` class to use when creating
-                           selectors. The default is the
-                           ``selectors.DefaultSelector`` class from the Python
-                           standard library.
+    Instead of creating an instance of this class directly, use the
+    ``accept()`` class method to create individual instances of the server,
+    each bound to a client request.
     """
     def __init__(self, environ, subprotocols=None, receive_bytes=4096,
                  ping_interval=None, max_message_size=None, thread_class=None,
@@ -318,6 +290,52 @@ class Server(Base):
                          thread_class=thread_class, event_class=event_class,
                          selector_class=selector_class)
 
+    @classmethod
+    def accept(cls, environ, subprotocols=None, receive_bytes=4096,
+               ping_interval=None, max_message_size=None, thread_class=None,
+               event_class=None, selector_class=None):
+        """Accept a WebSocket connection from a client.
+
+        :param environ: A WSGI ``environ`` dictionary with the request details.
+                        Among other things, this class expects to find the
+                        low-level network socket for the connection somewhere
+                        in this dictionary. Since the WSGI specification does
+                        not cover where or how to store this socket, each web
+                        server does this in its own different way. Werkzeug,
+                        Gunicorn, Eventlet and Gevent are the only web servers
+                        that are currently supported.
+        :param subprotocols: A list of supported subprotocols, or ``None`` (the
+                             default) to disable subprotocol negotiation.
+        :param receive_bytes: The size of the receive buffer, in bytes. The
+                              default is 4096.
+        :param ping_interval: Send ping packets to clients at the requested
+                              interval in seconds. Set to ``None`` (the
+                              default) to disable ping/pong logic. Enable to
+                              prevent disconnections when the line is idle for
+                              a certain amount of time, or to detect
+                              unresponsive clients and disconnect them. A
+                              recommended interval is 25 seconds.
+        :param max_message_size: The maximum size allowed for a message, in
+                                 bytes, or ``None`` for no limit. The default
+                                 is ``None``.
+        :param thread_class: The ``Thread`` class to use when creating
+                             background threads. The default is the
+                             ``threading.Thread`` class from the Python
+                             standard library.
+        :param event_class: The ``Event`` class to use when creating event
+                            objects. The default is the `threading.Event``
+                            class from the Python standard library.
+        :param selector_class: The ``Selector`` class to use when creating
+                               selectors. The default is the
+                               ``selectors.DefaultSelector`` class from the
+                               Python standard library.
+        """
+        return cls(environ, subprotocols=subprotocols,
+                   receive_bytes=receive_bytes, ping_interval=ping_interval,
+                   max_message_size=max_message_size,
+                   thread_class=thread_class, event_class=event_class,
+                   selector_class=selector_class)
+
     def handshake(self):
         in_data = b'GET / HTTP/1.1\r\n'
         for key, value in self.environ.items():
@@ -349,36 +367,9 @@ class Server(Base):
 class Client(Base):
     """This class implements a WebSocket client.
 
-    :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
-                accepted.
-    :param subprotocols: The name of the subprotocol to use, or a list of
-                         subprotocol names in order of preference. Set to
-                         ``None`` (the default) to not use a subprotocol.
-    :param headers: A dictionary or list of tuples with additional HTTP headers
-                    to send with the connection request. Note that custom
-                    headers are not supported by the WebSocket protocol, so the
-                    use of this parameter is not recommended.
-    :param receive_bytes: The size of the receive buffer, in bytes. The
-                          default is 4096.
-    :param ping_interval: Send ping packets to the server at the requested
-                          interval in seconds. Set to ``None`` (the default) to
-                          disable ping/pong logic. Enable to prevent
-                          disconnections when the line is idle for a certain
-                          amount of time, or to detect an unresponsive server
-                          and disconnect. A recommended interval is 25 seconds.
-                          In general it is preferred to enable ping/pong on the
-                          server, and let the client respond with pong (which
-                          it does regardless of this setting).
-    :param max_message_size: The maximum size allowed for a message, in bytes,
-                             or ``None`` for no limit. The default is ``None``.
-    :param ssl_context: An ``SSLContext`` instance, if a default SSL context
-                        isn't sufficient.
-    :param thread_class: The ``Thread`` class to use when creating background
-                         threads. The default is the ``threading.Thread``
-                         class from the Python standard library.
-    :param event_class: The ``Event`` class to use when creating event
-                        objects. The default is the `threading.Event`` class
-                        from the Python standard library.
+    Instead of creating an instance of this class directly, use the
+    ``connect()`` class method to create an instance that is connected to a
+    server.
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
@@ -413,6 +404,52 @@ class Client(Base):
                          ping_interval=ping_interval,
                          max_message_size=max_message_size,
                          thread_class=thread_class, event_class=event_class)
+
+    @classmethod
+    def connect(cls, url, subprotocols=None, headers=None,
+                receive_bytes=4096, ping_interval=None, max_message_size=None,
+                ssl_context=None, thread_class=None, event_class=None):
+        """Returns a WebSocket client connection.
+
+        :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
+                    accepted.
+        :param subprotocols: The name of the subprotocol to use, or a list of
+                             subprotocol names in order of preference. Set to
+                             ``None`` (the default) to not use a subprotocol.
+        :param headers: A dictionary or list of tuples with additional HTTP
+                        headers to send with the connection request. Note that
+                        custom headers are not supported by the WebSocket
+                        protocol, so the use of this parameter is not
+                        recommended.
+        :param receive_bytes: The size of the receive buffer, in bytes. The
+                              default is 4096.
+        :param ping_interval: Send ping packets to the server at the requested
+                              interval in seconds. Set to ``None`` (the
+                              default) to disable ping/pong logic. Enable to
+                              prevent disconnections when the line is idle for
+                              a certain amount of time, or to detect an
+                              unresponsive server and disconnect. A recommended
+                              interval is 25 seconds. In general it is
+                              preferred to enable ping/pong on the server, and
+                              let the client respond with pong (which it does
+                              regardless of this setting).
+        :param max_message_size: The maximum size allowed for a message, in
+                                 bytes, or ``None`` for no limit. The default
+                                 is ``None``.
+        :param ssl_context: An ``SSLContext`` instance, if a default SSL
+                            context isn't sufficient.
+        :param thread_class: The ``Thread`` class to use when creating
+                             background threads. The default is the
+                             ``threading.Thread`` class from the Python
+                             standard library.
+        :param event_class: The ``Event`` class to use when creating event
+                            objects. The default is the `threading.Event``
+                            class from the Python standard library.
+        """
+        return cls(url, subprotocols=subprotocols, headers=headers,
+                   receive_bytes=receive_bytes, ping_interval=ping_interval,
+                   max_message_size=max_message_size, ssl_context=ssl_context,
+                   thread_class=thread_class, event_class=event_class)
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,

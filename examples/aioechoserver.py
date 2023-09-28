@@ -1,17 +1,16 @@
 from aiohttp import web
-import simple_websocket
+from simple_websocket import AioServer, ConnectionClosed
 
 app = web.Application()
 
 
 async def echo(request):
-    ws = simple_websocket.AioServer(request)
-    await ws.connect()
+    ws = await AioServer.accept(request)
     try:
         while True:
             data = await ws.receive()
             await ws.send(data)
-    except simple_websocket.ConnectionClosed:
+    except ConnectionClosed:
         pass
     return web.Response(text='')
 

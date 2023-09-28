@@ -25,7 +25,7 @@ class SimpleWebSocketServerTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': 'Iv8io/9s+lYFgZWcXczP8Q==',
             'HTTP_SEC_WEBSOCKET_VERSION': '13',
         })
-        return simple_websocket.Server(
+        return simple_websocket.Server.accept(
             environ, subprotocols=server_subprotocols, **kwargs)
 
     @mock.patch('simple_websocket.ws.WSConnection')

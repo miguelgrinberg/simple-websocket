@@ -1,16 +1,16 @@
-from flask import Flask, render_template, request
-import simple_websocket
+from flask import Flask, request
+from simple_websocket import Server, ConnectionClosed
 app = Flask(__name__)
 
 
 @app.route('/echo', websocket=True)
 def echo():
-    ws = simple_websocket.Server(request.environ)
+    ws = Server.accept(request.environ)
     try:
         while True:
             data = ws.receive()
             ws.send(data)
-    except simple_websocket.ConnectionClosed:
+    except ConnectionClosed:
         pass
     return ''
 

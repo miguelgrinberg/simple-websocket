@@ -20,8 +20,6 @@ from wsproto.frame_protocol import CloseReason
 from wsproto.utilities import LocalProtocolError
 from .errors import ConnectionError, ConnectionClosed
 
-from .deasync import DeAsync
-
 
 class AioBase:
     def __init__(self, connection_type=None, receive_bytes=4096,
@@ -245,28 +243,9 @@ class AioBase:
 class AioServer(AioBase):
     """This class implements a WebSocket server.
 
-    :param request: An object with the request details. This class expects to
-                    find the low-level network socket for the connection in
-                    this object. This argument can be the request object from
-                    aiohttp, a tuple with the ``scope``, ``receive`` and
-                    ``send`` input arguments from an ASGI WebSocket connection
-                    request, or a request handler object from Tornado. If none
-                    of these are available, the caller can pass a tuple with
-                    a ``StreamWriter`` instance for the socket to use and a
-                    dictionary with request headers.
-    :param subprotocols: A list of supported subprotocols, or ``None`` (the
-                         default) to disable subprotocol negotiation.
-    :param receive_bytes: The size of the receive buffer, in bytes. The
-                          default is 4096.
-    :param ping_interval: Send ping packets to clients at the requested
-                          interval in seconds. Set to ``None`` (the default) to
-                          disable ping/pong logic. Enable to prevent
-                          disconnections when the line is idle for a certain
-                          amount of time, or to detect unresponsive clients and
-                          disconnect them. A recommended interval is 25
-                          seconds.
-    :param max_message_size: The maximum size allowed for a message, in bytes,
-                             or ``None`` for no limit. The default is ``None``.
+    Instead of creating an instance of this class directly, use the
+    ``accept()`` class method to create individual instances of the server,
+    each bound to a client request.
     """
     def __init__(self, request, subprotocols=None, receive_bytes=4096,
                  ping_interval=None, max_message_size=None):
@@ -281,7 +260,38 @@ class AioServer(AioBase):
             self.subprotocols = [self.subprotocols]
         self.mode = 'unknown'
 
-    async def connect(self):
+    @classmethod
+    async def accept(cls, request, subprotocols=None, receive_bytes=4096,
+                     ping_interval=None, max_message_size=None):
+        """Accept a WebSocket connection from a client.
+
+        :param request: An object with the request details. This class expects
+                        to find the low-level network socket for the connection
+                        in this object. This argument can be the request object
+                        from aiohttp, or a two-element tuple with the raw
+                        socket to use and a dictionary with request headers.
+        :param subprotocols: A list of supported subprotocols, or ``None`` (the
+                             default) to disable subprotocol negotiation.
+        :param receive_bytes: The size of the receive buffer, in bytes. The
+                              default is 4096.
+        :param ping_interval: Send ping packets to clients at the requested
+                              interval in seconds. Set to ``None`` (the
+                              default) to disable ping/pong logic. Enable to
+                              prevent disconnections when the line is idle for
+                              a certain amount of time, or to detect
+                              unresponsive clients and disconnect them. A
+                              recommended interval is 25 seconds.
+        :param max_message_size: The maximum size allowed for a message, in
+                                 bytes, or ``None`` for no limit. The default
+                                 is ``None``.
+        """
+        ws = cls(request, subprotocols=subprotocols,
+                 receive_bytes=receive_bytes, ping_interval=ping_interval,
+                 max_message_size=max_message_size)
+        await ws._accept()
+        return ws
+
+    async def _accept(self):
         if isinstance(self.request, tuple):
             # custom integration, request is a tuple with (socket, headers)
             sock = self.request[0]
@@ -324,30 +334,9 @@ class AioServer(AioBase):
 class AioClient(AioBase):
     """This class implements a WebSocket client.
 
-    :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
-                accepted.
-    :param subprotocols: The name of the subprotocol to use, or a list of
-                         subprotocol names in order of preference. Set to
-                         ``None`` (the default) to not use a subprotocol.
-    :param headers: A dictionary or list of tuples with additional HTTP headers
-                    to send with the connection request. Note that custom
-                    headers are not supported by the WebSocket protocol, so the
-                    use of this parameter is not recommended.
-    :param receive_bytes: The size of the receive buffer, in bytes. The
-                          default is 4096.
-    :param ping_interval: Send ping packets to the server at the requested
-                          interval in seconds. Set to ``None`` (the default) to
-                          disable ping/pong logic. Enable to prevent
-                          disconnections when the line is idle for a certain
-                          amount of time, or to detect an unresponsive server
-                          and disconnect. A recommended interval is 25 seconds.
-                          In general it is preferred to enable ping/pong on the
-                          server, and let the client respond with pong (which
-                          it does regardless of this setting).
-    :param max_message_size: The maximum size allowed for a message, in bytes,
-                             or ``None`` for no limit. The default is ``None``.
-    :param ssl_context: An ``SSLContext`` instance, if a default SSL context
-                        isn't sufficient.
+    Instead of creating an instance of this class directly, use the
+    ``connect()`` class method to create an instance that is connected to a
+    server.
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
@@ -376,7 +365,48 @@ class AioClient(AioBase):
         elif isinstance(headers, list):
             self.extra_headeers = headers
 
-    async def connect(self):
+    @classmethod
+    async def connect(cls, url, subprotocols=None, headers=None,
+                      receive_bytes=4096, ping_interval=None,
+                      max_message_size=None, ssl_context=None,
+                      thread_class=None, event_class=None):
+        """Returns a WebSocket client connection.
+
+        :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
+                    accepted.
+        :param subprotocols: The name of the subprotocol to use, or a list of
+                             subprotocol names in order of preference. Set to
+                             ``None`` (the default) to not use a subprotocol.
+        :param headers: A dictionary or list of tuples with additional HTTP
+                        headers to send with the connection request. Note that
+                        custom headers are not supported by the WebSocket
+                        protocol, so the use of this parameter is not
+                        recommended.
+        :param receive_bytes: The size of the receive buffer, in bytes. The
+                              default is 4096.
+        :param ping_interval: Send ping packets to the server at the requested
+                              interval in seconds. Set to ``None`` (the
+                              default) to disable ping/pong logic. Enable to
+                              prevent disconnections when the line is idle for
+                              a certain amount of time, or to detect an
+                              unresponsive server and disconnect. A recommended
+                              interval is 25 seconds. In general it is
+                              preferred to enable ping/pong on the server, and
+                              let the client respond with pong (which it does
+                              regardless of this setting).
+        :param max_message_size: The maximum size allowed for a message, in
+                                 bytes, or ``None`` for no limit. The default
+                                 is ``None``.
+        :param ssl_context: An ``SSLContext`` instance, if a default SSL
+                            context isn't sufficient.
+        """
+        ws = cls(url, subprotocols=subprotocols, headers=headers,
+                 receive_bytes=receive_bytes, ping_interval=ping_interval,
+                 max_message_size=max_message_size, ssl_context=ssl_context)
+        await ws._connect()
+        return ws
+
+    async def _connect(self):
         if self.is_secure:  # pragma: no cover
             if self.ssl_context is None:
                 self.ssl_context = ssl.create_default_context(
@@ -410,56 +440,3 @@ class AioClient(AioBase):
     async def close(self, reason=None, message=None):
         await super().close(reason=reason, message=message)
         self.wsock.close()
-
-
-class Server(DeAsync, async_class=AioServer):
-    connect = DeAsync.method(AioServer.connect)
-    close = DeAsync.method(AioServer.close)
-    send = DeAsync.method(AioServer.send)
-    receive = DeAsync.method(AioServer.receive)
-
-    def __init__(self, environ, subprotocols=None, receive_bytes=4096,
-                 ping_interval=None, max_message_size=None):
-        self.environ = environ
-        self.mode = 'unknown'
-        sock = None
-        if 'werkzeug.socket' in environ:
-            # extract socket from Werkzeug's WSGI environment
-            sock = environ.get('werkzeug.socket')
-            self.mode = 'werkzeug'
-        elif 'gunicorn.socket' in environ:
-            # extract socket from Gunicorn WSGI environment
-            sock = environ.get('gunicorn.socket')
-            self.mode = 'gunicorn'
-        elif 'eventlet.input' in environ:  # pragma: no cover
-            # extract socket from Eventlet's WSGI environment
-            sock = environ.get('eventlet.input').get_socket()
-            self.mode = 'eventlet'
-        elif environ.get('SERVER_SOFTWARE', '').startswith(
-                'gevent'):  # pragma: no cover
-            # extract socket from Gevent's WSGI environment
-            wsgi_input = environ['wsgi.input']
-            if not hasattr(wsgi_input, 'raw') and hasattr(wsgi_input, 'rfile'):
-                wsgi_input = wsgi_input.rfile
-            if hasattr(wsgi_input, 'raw'):
-                sock = wsgi_input.raw._sock
-                try:
-                    sock = sock.dup()
-                except NotImplementedError:
-                    pass
-                self.mode = 'gevent'
-        if sock is None:
-            raise RuntimeError('Cannot obtain socket from WSGI environment.')
-        headers = {}
-        for key, value in environ.items():
-            if key.startswith('HTTP_'):
-                headers[key[5:].replace('_', '-').title()] = value
-        super().__init__((sock, headers))
-
-
-class Client(DeAsync, async_class=AioClient):
-    connected = DeAsync.property('connected')
-    connect = DeAsync.method(AioClient.connect)
-    close = DeAsync.method(AioClient.close)
-    send = DeAsync.method(AioClient.send)
-    receive = DeAsync.method(AioClient.receive)

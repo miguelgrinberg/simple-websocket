@@ -145,8 +145,27 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
     @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
+    async def test_receive_after_close(self, mock_wsconn,
+                                       mock_open_connection):
+        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        wsock = mock.MagicMock()
+        mock_open_connection.return_value = (rsock, wsock)
+        client = await self.get_client(
+            mock_wsconn, 'ws://example.com/ws', events=[
+                [TextMessage('hello')],
+            ])
+        while client.connected:
+            await asyncio.sleep(0.01)
+        assert await client.receive() == 'hello'
+        with pytest.raises(simple_websocket.ConnectionClosed):
+            await client.receive()
+
+    @make_sync
+    @mock.patch('simple_websocket.aiows.asyncio.open_connection')
+    @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive_ping(self, mock_wsconn, mock_open_connection):
         rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(

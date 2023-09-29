@@ -88,10 +88,13 @@ class AioBase:
                 await asyncio.wait_for(self.event.wait(), timeout=timeout)
             except asyncio.TimeoutError:
                 return None
-            self.event.clear()
+            self.event.clear()  # pragma: no cover
+        try:
+            return self.input_buffer.pop(0)
+        except IndexError:
+            pass
         if not self.connected:  # pragma: no cover
             raise ConnectionClosed(self.close_reason, self.close_message)
-        return self.input_buffer.pop(0)
 
     async def close(self, reason=None, message=None):
         """Close the WebSocket connection.
@@ -292,7 +295,7 @@ class AioServer(AioBase):
         return ws
 
     async def _accept(self):
-        if isinstance(self.request, tuple):
+        if isinstance(self.request, tuple):  # pragma: no cover
             # custom integration, request is a tuple with (socket, headers)
             sock = self.request[0]
             self.headers = self.request[1]

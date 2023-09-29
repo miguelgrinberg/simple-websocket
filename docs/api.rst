@@ -8,10 +8,24 @@ The ``Server`` class
    :inherited-members:
    :members:
 
+The ``AioServer`` class
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: simple_websocket.AioServer
+   :inherited-members:
+   :members:
+
 The ``Client`` class
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: simple_websocket.Client
+   :inherited-members:
+   :members:
+
+The ``AioClient`` class
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: simple_websocket.AioClient
    :inherited-members:
    :members:
 

@@ -1,5 +1,6 @@
 from flask import Flask, request
 from simple_websocket import Server, ConnectionClosed
+
 app = Flask(__name__)
 
 

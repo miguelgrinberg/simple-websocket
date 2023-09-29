@@ -264,15 +264,22 @@ class AioServer(AioBase):
         self.mode = 'unknown'
 
     @classmethod
-    async def accept(cls, request, subprotocols=None, receive_bytes=4096,
-                     ping_interval=None, max_message_size=None):
+    async def accept(cls, aiohttp=None, asgi=None, sock=None, headers=None,
+                     subprotocols=None, receive_bytes=4096, ping_interval=None,
+                     max_message_size=None):
         """Accept a WebSocket connection from a client.
 
-        :param request: An object with the request details. This class expects
-                        to find the low-level network socket for the connection
-                        in this object. This argument can be the request object
-                        from aiohttp, or a two-element tuple with the raw
-                        socket to use and a dictionary with request headers.
+        :param aiohttp: The request object from aiohttp. If this argument is
+                        provided, ``asgi``, ``sock`` and ``headers`` must not
+                        be set.
+        :param asgi: A (scope, receive, send) tuple from an ASGI request. If
+                     this argument is provided, ``aiohttp``, ``sock`` and
+                     ``headers`` must not be set.
+        :param sock: A connected socket to use. If this argument is provided,
+                     ``aiohttp`` and ``asgi`` must not be set. The ``headers``
+                     argument must be set with the incoming request headers.
+        :param headers: A dictionary with the incoming request headers, when
+                        ``sock`` is used.
         :param subprotocols: A list of supported subprotocols, or ``None`` (the
                              default) to disable subprotocol negotiation.
         :param receive_bytes: The size of the receive buffer, in bytes. The
@@ -288,23 +295,38 @@ class AioServer(AioBase):
                                  bytes, or ``None`` for no limit. The default
                                  is ``None``.
         """
-        ws = cls(request, subprotocols=subprotocols,
-                 receive_bytes=receive_bytes, ping_interval=ping_interval,
+        if aiohttp and (asgi or sock):
+            raise ValueError('aiohttp argument cannot be used with asgi or '
+                             'sock')
+        if asgi and (aiohttp or sock):
+            raise ValueError('asgi argument cannot be used with aiohttp or '
+                             'sock')
+        if asgi:  # pragma: no cover
+            from .asgi import WebSocketASGI
+            return await WebSocketASGI.accept(asgi[0], asgi[1], asgi[2],
+                                              subprotocols=subprotocols)
+
+        ws = cls({'aiohttp': aiohttp, 'sock': sock, 'headers': headers},
+                 subprotocols=subprotocols, receive_bytes=receive_bytes,
+                 ping_interval=ping_interval,
                  max_message_size=max_message_size)
         await ws._accept()
         return ws
 
     async def _accept(self):
-        if isinstance(self.request, tuple):  # pragma: no cover
+        if self.request['sock']:  # pragma: no cover
             # custom integration, request is a tuple with (socket, headers)
-            sock = self.request[0]
-            self.headers = self.request[1]
+            sock = self.request['sock']
+            self.headers = self.request['headers']
             self.mode = 'custom'
-        else:
+        elif self.request['aiohttp']:
             # default implementation, request is an aiohttp request object
-            sock = self.request.transport.get_extra_info('socket').dup()
-            self.headers = self.request.headers
+            sock = self.request['aiohttp'].transport.get_extra_info(
+                'socket').dup()
+            self.headers = self.request['aiohttp'].headers
             self.mode = 'aiohttp'
+        else:  # pragma: no cover
+            raise ValueError('Invalid request')
         self.rsock, self.wsock = await asyncio.open_connection(sock=sock)
         await super().connect()
 

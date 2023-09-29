@@ -27,7 +27,7 @@ class AioSimpleWebSocketServerTestCase(unittest.TestCase):
             'Sec-Websocket-Version': '13',
         })
         return await simple_websocket.AioServer.accept(
-            request, subprotocols=server_subprotocols, **kwargs)
+            aiohttp=request, subprotocols=server_subprotocols, **kwargs)
 
     @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
@@ -52,6 +52,13 @@ class AioSimpleWebSocketServerTestCase(unittest.TestCase):
             b'Sec-Websocket-Key: Iv8io/9s+lYFgZWcXczP8Q==\r\n'
             b'Sec-Websocket-Version: 13\r\n\r\n')
         assert server.is_server
+
+    @make_sync
+    async def test_invalid_request(self):
+        with pytest.raises(ValueError):
+            await simple_websocket.AioServer.accept(aiohttp='foo', asgi='bar')
+        with pytest.raises(ValueError):
+            await simple_websocket.AioServer.accept(asgi='bar', sock='baz')
 
     @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')

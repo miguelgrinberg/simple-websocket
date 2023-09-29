@@ -5,7 +5,7 @@ app = web.Application()
 
 
 async def echo(request):
-    ws = await AioServer.accept(request)
+    ws = await AioServer.accept(aiohttp=request)
     try:
         while True:
             data = await ws.receive()

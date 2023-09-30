@@ -15,8 +15,8 @@ class SimpleWebSocketClientTestCase(unittest.TestCase):
             [iter(ev) for ev in
              [[AcceptConnection()]] + events + [[CloseConnection(1000)]]]
         mock_wsconn().send = lambda x: str(x).encode('utf-8')
-        return simple_websocket.Client(url, subprotocols=subprotocols,
-                                       headers=headers)
+        return simple_websocket.Client.connect(url, subprotocols=subprotocols,
+                                               headers=headers)
 
     @mock.patch('simple_websocket.ws.socket.socket')
     @mock.patch('simple_websocket.ws.WSConnection')

@@ -1,5 +1,15 @@
 # simple-websocket change log
 
+**Release 1.0.0** - 2023-10-05
+
+- New async client and server [#28](https://github.com/miguelgrinberg/simple-websocket/issues/28) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/57c5ffcb25c14d5c70f1ad4edd0261cdfcd27c94))
+- On a closed connection, return buffered input before raising an exception [#30](https://github.com/miguelgrinberg/simple-websocket/issues/30) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6c87abe22215c45b3dc0dadc168c3dd061eb2aa4))
+- Do not duplicate SSLSocket instances [#26](https://github.com/miguelgrinberg/simple-websocket/issues/26) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/da42e98bf80f22747089946a6a08840e0bf646a9))
+- Handle broken pipe errors in background thread [#29](https://github.com/miguelgrinberg/simple-websocket/issues/29) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/6f92764754550fc85b25e42182050c1e6636a41d))
+- Remove unused argument ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/245eedcf1e82fd3d199a6f7bf44916047588763d))
+- Eliminate race conditions during testing [#27](https://github.com/miguelgrinberg/simple-websocket/issues/27) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/a37c79dc9ec8a54968d8b849c7f0a2e3bca46db8))
+- Remove python 3.7 from unit tests ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/761925a635901b4641ad63b6072c24ff5c4099d5))
+
 **Release 0.10.1** - 2023-06-04
 
 - Duplicate the gevent socket to avoid using it in multiple greenlets [#24](https://github.com/miguelgrinberg/simple-websocket/issues/24) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/ebc12b1a390ab36d8dcd020b45410da282fa8d60))

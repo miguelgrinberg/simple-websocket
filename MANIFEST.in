@@ -1,5 +1,6 @@
 include CHANGES.md README.md LICENSE tox.ini
 recursive-include docs *
 recursive-exclude docs/_build *
+recursive-include examples *
 recursive-include tests *
 exclude **/*.pyc

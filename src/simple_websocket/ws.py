@@ -143,6 +143,7 @@ class Base:
                         if not self.pong_received:
                             self.close(reason=CloseReason.POLICY_VIOLATION,
                                        message='Ping/Pong timeout')
+                            self.event.set()
                             break
                         self.pong_received = False
                         self.sock.send(self.ws.send(Ping()))

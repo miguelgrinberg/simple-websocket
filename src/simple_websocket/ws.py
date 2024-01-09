@@ -132,7 +132,10 @@ class Base:
         if self.ping_interval:
             next_ping = time() + self.ping_interval
             sel = self.selector_class()
-            sel.register(self.sock, selectors.EVENT_READ, True)
+            try:
+                sel.register(self.sock, selectors.EVENT_READ, True)
+            except ValueError:  # pragma: no cover
+                self.connected = False
 
         while self.connected:
             try:

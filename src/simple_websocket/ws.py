@@ -132,7 +132,10 @@ class Base:
         if self.ping_interval:
             next_ping = time() + self.ping_interval
             sel = self.selector_class()
-            sel.register(self.sock, selectors.EVENT_READ, True)
+            try:
+                sel.register(self.sock, selectors.EVENT_READ, True)
+            except ValueError:  # pragma: no cover
+                self.connected = False
 
         while self.connected:
             try:
@@ -154,7 +157,8 @@ class Base:
                     raise OSError()
                 self.ws.receive_data(in_data)
                 self.connected = self._handle_events()
-            except (OSError, ConnectionResetError):  # pragma: no cover
+            except (OSError, ConnectionResetError,
+                    LocalProtocolError):  # pragma: no cover
                 self.connected = False
                 self.event.set()
                 break

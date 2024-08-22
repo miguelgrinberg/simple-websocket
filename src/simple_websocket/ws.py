@@ -397,7 +397,7 @@ class Client(Base):
         elif isinstance(headers, list):
             self.extra_headeers = headers
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         if is_secure:  # pragma: no cover
             if ssl_context is None:
                 ssl_context = ssl.create_default_context(

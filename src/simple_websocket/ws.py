@@ -450,6 +450,9 @@ class Client(Base):
         :param event_class: The ``Event`` class to use when creating event
                             objects. The default is the `threading.Event``
                             class from the Python standard library.
+        :param address_family: The address family to use when creating the
+                            socket. The default is ``socket.AF_INET``. Use
+                            ``socket.AF_INET6`` for IPv6 connections.
         """
         return cls(url, subprotocols=subprotocols, headers=headers,
                    receive_bytes=receive_bytes, ping_interval=ping_interval,

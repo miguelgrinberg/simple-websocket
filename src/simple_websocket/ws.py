@@ -378,7 +378,7 @@ class Client(Base):
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
-                 ssl_context=None, thread_class=None, event_class=None):
+                 ssl_context=None, thread_class=None, event_class=None, address_family=socket.AF_INET):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -397,7 +397,7 @@ class Client(Base):
         elif isinstance(headers, list):
             self.extra_headeers = headers
 
-        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        sock = socket.socket(address_family, socket.SOCK_STREAM)
         if is_secure:  # pragma: no cover
             if ssl_context is None:
                 ssl_context = ssl.create_default_context(
@@ -413,7 +413,7 @@ class Client(Base):
     @classmethod
     def connect(cls, url, subprotocols=None, headers=None,
                 receive_bytes=4096, ping_interval=None, max_message_size=None,
-                ssl_context=None, thread_class=None, event_class=None):
+                ssl_context=None, thread_class=None, event_class=None, address_family=socket.AF_INET):
         """Returns a WebSocket client connection.
 
         :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
@@ -454,7 +454,7 @@ class Client(Base):
         return cls(url, subprotocols=subprotocols, headers=headers,
                    receive_bytes=receive_bytes, ping_interval=ping_interval,
                    max_message_size=max_message_size, ssl_context=ssl_context,
-                   thread_class=thread_class, event_class=event_class)
+                   thread_class=thread_class, event_class=event_class, address_family=address_family)
 
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,

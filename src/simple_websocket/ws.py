@@ -379,7 +379,7 @@ class Client(Base):
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
                  ssl_context=None, thread_class=None, event_class=None,
-                 address_family=socket.AF_INET):
+                 address_family=None):
         parsed_url = urlsplit(url)
         is_secure = parsed_url.scheme in ['https', 'wss']
         self.host = parsed_url.hostname
@@ -391,14 +391,21 @@ class Client(Base):
         if isinstance(self.subprotocols, str):
             self.subprotocols = [self.subprotocols]
 
-        self.extra_headeers = []
+        self.extra_headers = []
         if isinstance(headers, dict):
             for key, value in headers.items():
-                self.extra_headeers.append((key, value))
+                self.extra_headers.append((key, value))
         elif isinstance(headers, list):
-            self.extra_headeers = headers
+            self.extra_headers = headers
 
-        sock = socket.socket(address_family, socket.SOCK_STREAM)
+        if address_family is None:
+            addr_family = socket.getaddrinfo(
+                self.host, self.port,
+                type=socket.SOCK_STREAM)[0][0]
+            sock = socket.socket(addr_family, socket.SOCK_STREAM)
+        else:
+            sock = socket.socket(address_family, socket.SOCK_STREAM)
+
         if is_secure:  # pragma: no cover
             if ssl_context is None:
                 ssl_context = ssl.create_default_context(
@@ -415,7 +422,7 @@ class Client(Base):
     def connect(cls, url, subprotocols=None, headers=None,
                 receive_bytes=4096, ping_interval=None, max_message_size=None,
                 ssl_context=None, thread_class=None, event_class=None,
-                address_family=socket.AF_INET):
+                address_family=None):
         """Returns a WebSocket client connection.
 
         :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
@@ -465,7 +472,7 @@ class Client(Base):
     def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
                                         subprotocols=self.subprotocols,
-                                        extra_headers=self.extra_headeers))
+                                        extra_headers=self.extra_headers))
         self.sock.send(out_data)
 
         while True:

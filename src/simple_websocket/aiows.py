@@ -1,5 +1,6 @@
 import asyncio
 import ssl
+import socket
 from time import time
 from urllib.parse import urlsplit
 
@@ -39,6 +40,7 @@ class AioBase:
         self.is_server = (connection_type == ConnectionType.SERVER)
         self.close_reason = CloseReason.NO_STATUS_RCVD
         self.close_message = None
+        self.address_family = None
 
         self.rsock = None
         self.wsock = None
@@ -365,7 +367,7 @@ class AioClient(AioBase):
     """
     def __init__(self, url, subprotocols=None, headers=None,
                  receive_bytes=4096, ping_interval=None, max_message_size=None,
-                 ssl_context=None):
+                 ssl_context=None, address_family=None):
         super().__init__(connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
                          ping_interval=ping_interval,
@@ -377,24 +379,34 @@ class AioClient(AioBase):
         self.host = parsed_url.hostname
         self.port = parsed_url.port or (443 if self.is_secure else 80)
         self.path = parsed_url.path
+
+        if address_family is None:
+            addr_family = socket.getaddrinfo(
+                self.host, self.port,
+                type=socket.SOCK_STREAM)[0][0]
+            self.address_family = addr_family
+        else:
+            self.address_family = address_family
+
         if parsed_url.query:
             self.path += '?' + parsed_url.query
         self.subprotocols = subprotocols or []
         if isinstance(self.subprotocols, str):
             self.subprotocols = [self.subprotocols]
 
-        self.extra_headeers = []
+        self.extra_headers = []
         if isinstance(headers, dict):
             for key, value in headers.items():
-                self.extra_headeers.append((key, value))
+                self.extra_headers.append((key, value))
         elif isinstance(headers, list):
-            self.extra_headeers = headers
+            self.extra_headers = headers
 
     @classmethod
     async def connect(cls, url, subprotocols=None, headers=None,
                       receive_bytes=4096, ping_interval=None,
                       max_message_size=None, ssl_context=None,
-                      thread_class=None, event_class=None):
+                      thread_class=None, event_class=None,
+                      address_family=None):
         """Returns a WebSocket client connection.
 
         :param url: The connection URL. Both ``ws://`` and ``wss://`` URLs are
@@ -424,10 +436,14 @@ class AioClient(AioBase):
                                  is ``None``.
         :param ssl_context: An ``SSLContext`` instance, if a default SSL
                             context isn't sufficient.
+        :param address_family: The address family to use when creating the
+                            socket. The default is ``socket.AF_INET``. Use
+                            ``socket.AF_INET6`` for IPv6 connections.
         """
         ws = cls(url, subprotocols=subprotocols, headers=headers,
                  receive_bytes=receive_bytes, ping_interval=ping_interval,
-                 max_message_size=max_message_size, ssl_context=ssl_context)
+                 max_message_size=max_message_size, ssl_context=ssl_context,
+                 address_family=address_family)
         await ws._connect()
         return ws
 
@@ -437,13 +453,13 @@ class AioClient(AioBase):
                 self.ssl_context = ssl.create_default_context(
                     purpose=ssl.Purpose.SERVER_AUTH)
         self.rsock, self.wsock = await asyncio.open_connection(
-            self.host, self.port, ssl=self.ssl_context)
+            self.address_family, self.port, ssl=self.ssl_context)
         await super().connect()
 
     async def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
                                         subprotocols=self.subprotocols,
-                                        extra_headers=self.extra_headeers))
+                                        extra_headers=self.extra_headers))
         self.wsock.write(out_data)
 
         while True:

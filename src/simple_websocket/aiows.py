@@ -383,12 +383,12 @@ class AioClient(AioBase):
         if isinstance(self.subprotocols, str):
             self.subprotocols = [self.subprotocols]
 
-        self.extra_headeers = []
+        self.extra_headers = []
         if isinstance(headers, dict):
             for key, value in headers.items():
-                self.extra_headeers.append((key, value))
+                self.extra_headers.append((key, value))
         elif isinstance(headers, list):
-            self.extra_headeers = headers
+            self.extra_headers = headers
 
     @classmethod
     async def connect(cls, url, subprotocols=None, headers=None,
@@ -443,7 +443,7 @@ class AioClient(AioBase):
     async def handshake(self):
         out_data = self.ws.send(Request(host=self.host, target=self.path,
                                         subprotocols=self.subprotocols,
-                                        extra_headers=self.extra_headeers))
+                                        extra_headers=self.extra_headers))
         self.wsock.write(out_data)
 
         while True:

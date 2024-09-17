@@ -460,8 +460,8 @@ class Client(Base):
                             objects. The default is the `threading.Event``
                             class from the Python standard library.
         :param address_family: The address family to use when creating the
-                            socket. The default is ``socket.AF_INET``. Use
-                            ``socket.AF_INET6`` for IPv6 connections.
+                            socket. The default is ``None`` and will fallback
+                            to first getaddrinfo result.
         """
         return cls(url, subprotocols=subprotocols, headers=headers,
                    receive_bytes=receive_bytes, ping_interval=ping_interval,

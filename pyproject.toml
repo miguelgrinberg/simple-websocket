@@ -26,6 +26,12 @@ Homepage = "https://github.com/miguelgrinberg/simple-websocket"
 "Bug Tracker" = "https://github.com/miguelgrinberg/simple-websocket/issues"
 
 [project.optional-dependencies]
+dev = [
+    "tox",
+    "flake8",
+    "pytest",
+    "pytest-cov",
+]
 docs = [
     "sphinx",
 ]

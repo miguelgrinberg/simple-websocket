@@ -1,5 +1,12 @@
 # simple-websocket change log
 
+**Release 1.1.0** - 2024-10-10
+
+- Added support for IPv6 in the sync client (async already supports it) [#39](https://github.com/miguelgrinberg/simple-websocket/issues/39) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/d4f05c7dd5ede0364c1f69e8e854b9b4ef80f1a7))
+- Added a top-level exception class ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/e7c225ea1824a23fe2fe6ec2ef7b64dd9b9dc80f))
+- Improve handling of immediately closed sockets with ping/pong enabled [#35](https://github.com/miguelgrinberg/simple-websocket/issues/35) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/632ec52ce1fce4908b9733e3d24935b2a0514472)) (thanks **Łukasz Kędziora**!)
+- Unblock `receive()` call on timeout disconnections [#33](https://github.com/miguelgrinberg/simple-websocket/issues/33) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/5a5dbecd23e67c09780c21af586ca9e36c6b6417)) (thanks **Łukasz Kędziora**!)
+
 **Release 1.0.0** - 2023-10-05
 
 - New async client and server [#28](https://github.com/miguelgrinberg/simple-websocket/issues/28) ([commit](https://github.com/miguelgrinberg/simple-websocket/commit/57c5ffcb25c14d5c70f1ad4edd0261cdfcd27c94))

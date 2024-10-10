@@ -397,21 +397,18 @@ class Client(Base):
         elif isinstance(headers, list):
             self.extra_headeers = headers
 
-        connection_args = None
-        for conn in socket.getaddrinfo(self.host, self.port):  # pragma: no branch
-            if conn[1] == socket.SOCK_STREAM:  # pragma: no branch
-                connection_args = conn
-                break
-        if connection_args is None:  # pragma: no cover
+        connection_args = socket.getaddrinfo(self.host, self.port,
+                                             type=socket.SOCK_STREAM)
+        if len(connection_args) == 0:  # pragma: no cover
             raise ConnectionError()
-        sock = socket.socket(connection_args[0], connection_args[1],
-                             connection_args[2])
+        sock = socket.socket(connection_args[0][0], connection_args[0][1],
+                             connection_args[0][2])
         if is_secure:  # pragma: no cover
             if ssl_context is None:
                 ssl_context = ssl.create_default_context(
                     purpose=ssl.Purpose.SERVER_AUTH)
             sock = ssl_context.wrap_socket(sock, server_hostname=self.host)
-        sock.connect(connection_args[4])
+        sock.connect(connection_args[0][4])
         super().__init__(sock, connection_type=ConnectionType.CLIENT,
                          receive_bytes=receive_bytes,
                          ping_interval=ping_interval,

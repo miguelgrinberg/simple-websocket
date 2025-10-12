@@ -26,6 +26,7 @@ class WebSocketASGI:  # pragma: no cover
                 break
         await self._send({'type': 'websocket.accept',
                          'subprotocol': self.subprotocol})
+        self.connected = True
 
     async def receive(self):
         message = await self._receive()
@@ -42,9 +43,9 @@ class WebSocketASGI:  # pragma: no cover
             await self._send({'type': 'websocket.send', 'bytes': data})
 
     async def close(self):
-        if not self.connected:
-            self.conncted = False
+        if self.connected:
             try:
                 await self._send({'type': 'websocket.close'})
             except Exception:
                 pass
+            self.connected = False

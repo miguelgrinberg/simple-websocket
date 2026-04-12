@@ -169,7 +169,8 @@ class TestAioSimpleWebSocketClient:
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive_empty(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=mock.AsyncMock(side_effect=[b'x', b'x', b'']))
+        rsock = mock.MagicMock(read=mock.AsyncMock(
+            side_effect=[b'x', b'x', b'']))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(

@@ -1,15 +1,14 @@
 import asyncio
-import unittest
 from unittest import mock
 import pytest  # noqa: F401
 
 from wsproto.events import AcceptConnection, CloseConnection, TextMessage, \
     BytesMessage, Ping
 import simple_websocket
-from .helpers import make_sync, AsyncMock
 
 
-class AioSimpleWebSocketClientTestCase(unittest.TestCase):
+@pytest.mark.asyncio
+class TestAioSimpleWebSocketClient:
     async def get_client(self, mock_wsconn, url, events=[], subprotocols=None,
                          headers=None):
         mock_wsconn().events.side_effect = \
@@ -19,11 +18,10 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
         return await simple_websocket.AioClient.connect(
             url, subprotocols=subprotocols, headers=headers)
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_make_client(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(mock_wsconn, 'ws://example.com/ws?a=1')
@@ -40,12 +38,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
         assert client.port == 80
         assert client.path == '/ws?a=1'
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_make_client_subprotocol(self, mock_wsconn,
                                            mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
@@ -55,12 +52,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             b"Request(host='example.com', target='/ws?a=1', extensions=[], "
             b"extra_headers=[], subprotocols=['foo'])")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_make_client_subprotocols(self, mock_wsconn,
                                             mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
@@ -70,12 +66,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             b"Request(host='example.com', target='/ws?a=1', extensions=[], "
             b"extra_headers=[], subprotocols=['foo', 'bar'])")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_make_client_headers(self, mock_wsconn,
                                        mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(mock_wsconn, 'ws://example.com/ws?a=1',
@@ -84,12 +79,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             b"Request(host='example.com', target='/ws?a=1', extensions=[], "
             b"extra_headers=[('Foo', 'Bar')], subprotocols=[])")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_make_client_headers2(self, mock_wsconn,
                                         mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(
@@ -100,11 +94,10 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             b"extra_headers=[('Foo', 'Bar'), ('Foo', 'Baz')], "
             b"subprotocols=[])")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_send(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(mock_wsconn, 'ws://example.com/ws')
@@ -123,11 +116,10 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             b"Message(data=b'hello', frame_finished=True, "
             b"message_finished=True)")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(
@@ -142,12 +134,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
         assert await client.receive() == b'hello'
         assert await client.receive(timeout=0) is None
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive_after_close(self, mock_wsconn,
                                        mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(
@@ -160,11 +151,10 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
         with pytest.raises(simple_websocket.ConnectionClosed):
             await client.receive()
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive_ping(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
 
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
@@ -176,11 +166,11 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
             await asyncio.sleep(0.01)
         wsock.write.assert_any_call(b"Pong(payload=b'hello')")
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_receive_empty(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(side_effect=[b'x', b'x', b'']))
+        rsock = mock.MagicMock(read=mock.AsyncMock(
+            side_effect=[b'x', b'x', b'']))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(
@@ -193,11 +183,10 @@ class AioSimpleWebSocketClientTestCase(unittest.TestCase):
         assert await client.receive() == 'hello'
         assert await client.receive(timeout=0) is None
 
-    @make_sync
     @mock.patch('simple_websocket.aiows.asyncio.open_connection')
     @mock.patch('simple_websocket.aiows.WSConnection')
     async def test_close(self, mock_wsconn, mock_open_connection):
-        rsock = mock.MagicMock(read=AsyncMock(return_value=b'x'))
+        rsock = mock.MagicMock(read=mock.AsyncMock(return_value=b'x'))
         wsock = mock.MagicMock()
         mock_open_connection.return_value = (rsock, wsock)
         client = await self.get_client(
